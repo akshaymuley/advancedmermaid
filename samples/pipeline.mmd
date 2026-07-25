@@ -1,0 +1,10 @@
+flowchart TD
+    A[Commit pushed] --> B{CI triggered?}
+    B -- yes --> C[Build]
+    B -- no --> Z[Done]
+    C --> D[Unit tests]
+    D --> E{Pass?}
+    E -- yes --> F[Deploy to staging]
+    E -- no --> G[Notify author]
+    F --> Z
+    G --> Z
