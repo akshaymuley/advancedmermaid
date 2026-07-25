@@ -1,0 +1,33 @@
+{
+  "skill_name": "tdd",
+  "evals": [
+    {
+      "id": 0,
+      "name": "fit-to-view-feature",
+      "prompt": "Add a 'Fit' button next to the 'Reset view' button in the Mermaid compare panel. Clicking it should adjust the shared pan/zoom so the left diagram fits entirely inside its pane with a 20px margin, centered. Both panes share the view state, so the right pane moves with it as usual.",
+      "expected_output": "Fit-to-view math extracted into a pure, unit-tested module; failing-first Vitest tests for the scale/offset computation; button wired in webview main.ts and HTML; typecheck clean.",
+      "assertions": [
+        "Fit button is added to the compare panel HTML and wired to a click handler that updates the shared view state",
+        "The fit scale/offset computation exists as a pure exported function (importable without DOM or vscode side effects)",
+        "Automated tests exist that exercise the fit computation (scale and centering math)",
+        "Test-first evidence: SUMMARY.md reports a test was written and observed failing before the implementation existed",
+        "npm run typecheck passes and the full test suite (if one exists) passes with clean output"
+      ],
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "validate-file-type-bugfix",
+      "prompt": "Bug report: running 'Compare Diagram with HEAD' from the command palette while a non-mermaid file (e.g., package.json) is the active editor opens a compare panel full of render errors. The command should instead show an error message unless the target file ends in .mmd or .mermaid. Fix this.",
+      "expected_output": "A failing-first test reproducing the bug (pure file-extension/uri validation logic extracted and unit tested), then the fix wired into compareWithRef; tests and typecheck pass.",
+      "assertions": [
+        "Running the command on a file not ending in .mmd or .mermaid shows an error message and does not open the compare panel",
+        "The file-type validation exists as a pure exported function (importable without vscode side effects)",
+        "Automated test reproduces the bug scenario: a non-mermaid filename is rejected by the validation",
+        "Test-first evidence: SUMMARY.md reports a failing test reproducing the bug was observed before the fix was applied",
+        "npm run typecheck passes and the full test suite (if one exists) passes with clean output"
+      ],
+      "files": []
+    }
+  ]
+}
