@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { getGitContent } from './git';
 import { ComparePanel } from './comparePanel';
+import { isMermaidFile } from './mermaid-file';
 
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
@@ -40,6 +41,14 @@ async function compareWithRef(
 ): Promise<void> {
   if (!uri) {
     vscode.window.showErrorMessage('Mermaid Compare: no file selected.');
+    return;
+  }
+
+  // The menu `when` clauses gate on resourceExtname, but the command palette bypasses them.
+  if (!isMermaidFile(uri)) {
+    vscode.window.showErrorMessage(
+      `Mermaid Compare: ${path.basename(uri.fsPath)} is not a Mermaid file (.mmd or .mermaid).`
+    );
     return;
   }
 
