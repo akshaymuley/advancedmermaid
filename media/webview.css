@@ -26,8 +26,11 @@ body {
   font-weight: 600;
 }
 
-#toolbar button {
+#toolbar button:first-of-type {
   margin-left: auto;
+}
+
+#toolbar button {
   background: var(--vscode-button-secondaryBackground);
   color: var(--vscode-button-secondaryForeground);
   border: none;
@@ -58,12 +61,20 @@ body {
 }
 
 .pane header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 4px 12px;
   font-size: 0.85em;
   opacity: 0.8;
   border-bottom: 1px solid var(--vscode-panel-border);
   flex: 0 0 auto;
   white-space: nowrap;
+  overflow: hidden;
+}
+
+/* The label truncates; the badge beside it must stay visible. */
+.pane header > span:first-child {
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -82,6 +93,24 @@ body {
 .viewport {
   position: absolute;
   transform-origin: 0 0;
+}
+
+/* Shown when the source no longer parses but the previous render is still on screen. */
+.pane header .badge {
+  flex: 0 0 auto;
+  background: var(--vscode-inputValidation-errorBackground);
+  border: 1px solid var(--vscode-inputValidation-errorBorder);
+  color: var(--vscode-errorForeground);
+  border-radius: 3px;
+  padding: 0 6px;
+  font-weight: 600;
+  cursor: help;
+}
+
+.empty-diagram {
+  padding: 24px;
+  opacity: 0.6;
+  font-style: italic;
 }
 
 .render-error {
