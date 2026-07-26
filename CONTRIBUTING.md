@@ -13,6 +13,9 @@ Thanks for your interest! All contributions are welcome — bug reports, feature
 
 - `npm test` — Vitest unit tests. The `vscode` module resolves to `src/test/vscode-mock.ts`;
   extend that mock rather than writing a new one.
+- `npm run test:integration` — runs the extension in a real VS Code (`@vscode/test-electron`):
+  activation, command registration, the panel/webview handshake, and the built-in git API.
+  Downloads VS Code on first run and opens a window for a few seconds. Runs in CI.
 - `npm run verify:view` — loads the real webview in Chromium via `harness/index.html` and
   exercises fit/zoom/sync, writing screenshots to `dist/view-screenshots/`. Needs a one-time
   `npx playwright install chromium`. Not run in CI.

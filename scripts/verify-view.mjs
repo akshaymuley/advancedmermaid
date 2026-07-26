@@ -9,12 +9,10 @@
  * Not part of `npm test` — it needs `npx playwright install chromium` first.
  */
 import { chromium } from 'playwright';
-import { fileURLToPath, pathToFileURL } from 'node:url';
 import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
+import { compare, openHarness, readView, root, settle } from './harness-helpers.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const harness = pathToFileURL(path.join(root, 'harness', 'index.html')).href;
 const shots = path.join(root, 'dist', 'view-screenshots');
 
 const VALID = 'flowchart TD\n  A[Start] --> B[Middle]\n  B --> C[End]';
@@ -37,28 +35,6 @@ function check(label, condition, detail = '') {
 function near(actual, expected, tolerance = 1) {
   return Math.abs(actual - expected) <= tolerance;
 }
-
-/** Parse the `matrix(a, b, c, d, tx, ty)` a viewport's transform computes to. */
-async function readView(page, side) {
-  return page.evaluate((s) => {
-    const matrix = new DOMMatrix(getComputedStyle(document.getElementById(`${s}-viewport`)).transform);
-    return { x: matrix.m41, y: matrix.m42, scale: matrix.a };
-  }, side);
-}
-
-const compare = (page, left, right, title = 'harness.mmd') =>
-  page.evaluate(
-    ([l, r, t]) =>
-      window.__compare({
-        title: t,
-        left: { label: 'HEAD', content: l },
-        right: { label: 'Working Tree', content: r },
-      }),
-    [left, right, title]
-  );
-
-/** The webview renders asynchronously; settle before measuring. */
-const settle = (page) => page.waitForTimeout(300);
 
 /**
  * Does the rendered diagram actually sit inside its pane?
@@ -92,16 +68,12 @@ async function main() {
   await mkdir(shots, { recursive: true });
 
   const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: { width: 1200, height: 700 } });
+  const page = await openHarness(browser);
 
   page.on('pageerror', (err) => {
     failures++;
     console.log(`  FAIL uncaught page error — ${err.message}`);
   });
-
-  await page.goto(harness);
-  await page.waitForFunction(() => typeof window.__compare === 'function');
-  await settle(page);
 
   console.log('\nfirst render');
   {

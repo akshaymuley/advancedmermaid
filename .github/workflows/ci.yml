@@ -19,3 +19,20 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  # Runs the extension in a real VS Code: activation, command registration, the webview
+  # handshake, and the built-in git API. Separate job because it downloads VS Code and needs a
+  # display; a failure here means something the unit tests structurally cannot see.
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The suite reads samples/pipeline.mmd at HEAD through the git extension, so it needs
+          # real history rather than the default shallow clone.
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: xvfb-run -a npm run test:integration

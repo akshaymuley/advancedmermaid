@@ -4,9 +4,9 @@ Iterative delivery plan for the extension. Each milestone is independently shipp
 it ends with a working `.vsix` and a version bump. Order is deliberate — earlier
 milestones remove friction that later ones would otherwise pay repeatedly.
 
-**Status:** v0.3.0. Renders two refs side-by-side, opens framed, follows edits to the compared
+**Status:** v0.4.0. Renders two refs side-by-side, opens framed, follows edits to the compared
 file, and reports git failures by kind. Panes pan/zoom together or independently.
-Not yet published. Milestones 1–3 complete.
+Milestones 1–3 complete; Milestone 4 is release-ready but **not published** — see Part 2 below.
 
 ---
 
@@ -35,7 +35,9 @@ CI runs `typecheck` + `test` + `build` on every PR. `main` is PR-protected.
 
 - **Single global panel.** Comparing a second file replaces the first.
 - **`verify:view` is not in CI.** It needs a ~130 MB Chromium download, which isn't worth it on
-  every PR yet. Revisit if the webview grows.
+  every PR yet. Revisit if the webview grows. (`test:integration` *is* in CI.)
+- **No human has used this in VS Code yet.** The integration suite proves it starts and
+  handshakes; it can't judge how anything looks.
 - **Not publishable yet** — no icon, no CHANGELOG, no marketplace pipeline.
 
 ---
@@ -100,12 +102,36 @@ CI runs `typecheck` + `test` + `build` on every PR. `main` is PR-protected.
 
 *Ship it. Everything above is enough to be genuinely useful.*
 
-- [ ] Extension icon (128×128 PNG) + `icon` field in `package.json`.
-- [ ] Demo GIF for the README (replaces the existing `<!-- TODO: demo GIF -->`).
-- [ ] `CHANGELOG.md` following Keep a Changelog.
-- [ ] GitHub Action: on tag push, `vsce package` + publish to the VS Code Marketplace
-      (needs a `VSCE_PAT` repo secret).
-- [ ] Consider Open VSX publishing alongside it.
+Split in two: everything *up to* the tag, then the publish itself.
+
+### Part 1 — release readiness (v0.4.0, done)
+
+- [x] **Integration tests in a real VS Code host** (`@vscode/test-electron`, `npm run
+      test:integration`). Not in the original list, and the most important item in it: nothing
+      here had ever been run in the extension host. Covers activation, command registration, the
+      panel/webview handshake, and reading a file at a ref through the built-in git API.
+- [x] Extension icon (128×128 PNG) + `icon` field in `package.json`. Generated from
+      `media/icon.svg` by `npm run make:icon`; checked at 32 px, where the first draft turned to
+      mush and had to be redrawn with fewer, bigger shapes.
+- [x] README screenshots (`npm run make:screenshots`) replacing the `<!-- TODO: demo GIF -->`.
+      No GIF: there's no ffmpeg here, and the Marketplace renders images only.
+- [x] `CHANGELOG.md` following Keep a Changelog.
+- [x] GitHub Action on tag push: package the `.vsix`, attach it to a GitHub Release, and publish
+      only once `VSCE_PAT` exists — so tagging early is safe. `RELEASING.md` documents the
+      whole sequence.
+
+### Part 2 — publish (v1.0.0) — **next task, yours**
+
+- [ ] **Manual F5 pass.** The integration suite proves the extension starts and the panel
+      handshakes; it says nothing about how the toolbar looks against a real theme or whether
+      the host swallows `+`/`-`/`0`.
+- [ ] Bump to `1.0.0` and move the `[Unreleased]` changelog section.
+- [ ] Create the Marketplace publisher `akshaymuley`, generate the PAT, add the `VSCE_PAT`
+      secret (see `RELEASING.md` — the all-organizations scope is the step that usually bites).
+- [ ] `git tag v1.0.0 && git push origin v1.0.0`.
+- [ ] Replace the harness screenshots in `docs/images/` with real captures from inside VS Code —
+      the current ones are the genuine webview, but without the surrounding editor chrome.
+- [ ] Consider Open VSX publishing alongside it (`ovsx`, separate `OVSX_PAT`).
 
 ## Milestone 5 — Broader inputs (v1.1.0)
 

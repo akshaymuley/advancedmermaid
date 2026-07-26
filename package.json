@@ -2,13 +2,19 @@
   "name": "mermaid-diagram-compare",
   "displayName": "Mermaid Diagram Compare",
   "description": "Compare rendered Mermaid diagrams instead of code — side-by-side visual diff against any git ref.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publisher": "akshaymuley",
   "license": "MIT",
+  "icon": "media/icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/akshaymuley/AdvancedMermaid"
   },
+  "homepage": "https://github.com/akshaymuley/AdvancedMermaid#readme",
+  "bugs": {
+    "url": "https://github.com/akshaymuley/AdvancedMermaid/issues"
+  },
+  "qna": "https://github.com/akshaymuley/AdvancedMermaid/issues",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -72,6 +78,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "verify:view": "node esbuild.js && node scripts/verify-view.mjs",
+    "test:integration": "node esbuild.js && vscode-test",
+    "make:icon": "node scripts/make-icon.mjs",
+    "make:screenshots": "node esbuild.js && node scripts/make-screenshots.mjs",
     "test:watch": "vitest",
     "vscode:prepublish": "npm run build"
   },
@@ -79,10 +88,14 @@
     "mermaid": "^11.6.0"
   },
   "devDependencies": {
+    "@types/mocha": "^10.0.10",
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.85.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.1.0",
     "esbuild": "^0.28.1",
     "jsdom": "^29.1.1",
+    "mocha": "^11.7.6",
     "playwright": "^1.62.0",
     "typescript": "^5.5.0",
     "vitest": "^4.1.10"

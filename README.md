@@ -4,7 +4,7 @@
 
 Git diffs of `.mmd` files show text changes, but a one-line edit can completely rearrange a rendered diagram. This VS Code extension shows you the *visual* difference: the old and new versions rendered side by side, with synced pan and zoom.
 
-<!-- TODO: demo GIF -->
+![Two versions of a deploy pipeline diagram side by side, the right one with extra steps](https://raw.githubusercontent.com/akshaymuley/AdvancedMermaid/main/docs/images/compare.png)
 
 ## Features
 
@@ -21,6 +21,20 @@ Git diffs of `.mmd` files show text changes, but a one-line edit can completely 
 
 1. Open a `.mmd` or `.mermaid` file inside a git repository.
 2. Click the compare icon in the editor title bar, or run **Mermaid Compare: Compare Diagram with HEAD** from the command palette.
+
+### Editing live
+
+The working-tree pane follows your edits. Mermaid spends most of an edit in an invalid state, so
+a source that doesn't parse keeps the last good diagram on screen and raises a badge in the pane
+header instead of blanking the pane.
+
+![A mid-edit diagram holding its previous render with an error badge in the pane header](https://raw.githubusercontent.com/akshaymuley/AdvancedMermaid/main/docs/images/live-edit.png)
+
+### Inspecting one side
+
+Both panes pan and zoom together by default. Turn **Sync** off to frame each side on its own.
+
+![The two panes zoomed and positioned independently](https://raw.githubusercontent.com/akshaymuley/AdvancedMermaid/main/docs/images/independent-panes.png)
 
 ## Roadmap
 
@@ -43,7 +57,10 @@ npm run watch     # rebuild on change
 
 Press `F5` in VS Code to launch an Extension Development Host.
 
-Other scripts: `npm run typecheck`, `npm run build` (production bundle). To package a `.vsix`: `npx @vscode/vsce package`.
+Other scripts: `npm run typecheck`, `npm test` (unit), `npm run test:integration` (in a real VS
+Code), `npm run verify:view` (webview in Chromium), `npm run build` (production bundle).
+
+To package a `.vsix`: `npx @vscode/vsce package`. Release process: [RELEASING.md](RELEASING.md).
 
 ## License
 
