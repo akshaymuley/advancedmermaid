@@ -2,7 +2,7 @@
   "name": "mermaid-diagram-compare",
   "displayName": "Mermaid Diagram Compare",
   "description": "Compare rendered Mermaid diagrams instead of code — side-by-side visual diff against any git ref.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "akshaymuley",
   "license": "MIT",
   "repository": {
@@ -71,6 +71,7 @@
     "build": "node esbuild.js --production",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "verify:view": "node esbuild.js && node scripts/verify-view.mjs",
     "test:watch": "vitest",
     "vscode:prepublish": "npm run build"
   },
@@ -82,6 +83,7 @@
     "@types/vscode": "^1.85.0",
     "esbuild": "^0.28.1",
     "jsdom": "^29.1.1",
+    "playwright": "^1.62.0",
     "typescript": "^5.5.0",
     "vitest": "^4.1.10"
   }

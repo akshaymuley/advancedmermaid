@@ -26,14 +26,24 @@ body {
   font-weight: 600;
 }
 
-#toolbar button:first-of-type {
+#view-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin-left: auto;
+}
+
+#zoom-level {
+  min-width: 4.5em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
 }
 
 #toolbar button {
   background: var(--vscode-button-secondaryBackground);
   color: var(--vscode-button-secondaryForeground);
-  border: none;
+  border: 1px solid transparent;
   padding: 3px 10px;
   cursor: pointer;
   border-radius: 2px;
@@ -41,6 +51,13 @@ body {
 
 #toolbar button:hover {
   background: var(--vscode-button-secondaryHoverBackground);
+}
+
+/* Sync is a toggle: pressed is the default, so make "off" the state that stands out. */
+#sync[aria-pressed='false'] {
+  background: transparent;
+  border-color: var(--vscode-panel-border);
+  opacity: 0.7;
 }
 
 #panes {

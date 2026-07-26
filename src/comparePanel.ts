@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { debounce } from './debounce';
+import { PANEL_BODY_HTML } from './webview/panel-body';
 
 /** How long to wait after the last keystroke before re-rendering the working-tree pane. */
 const REFRESH_DELAY_MS = 300;
@@ -158,21 +159,7 @@ export class ComparePanel {
   <title>Mermaid Compare</title>
 </head>
 <body>
-  <div id="toolbar">
-    <span id="doc-title"></span>
-    <button id="refresh" title="Re-read both sides, including the git ref">Refresh</button>
-    <button id="reset">Reset view</button>
-  </div>
-  <div id="panes">
-    <section class="pane">
-      <header><span id="left-label"></span><span class="badge" id="left-badge" hidden>!</span></header>
-      <div class="canvas"><div class="viewport" id="left-viewport"></div></div>
-    </section>
-    <section class="pane">
-      <header><span id="right-label"></span><span class="badge" id="right-badge" hidden>!</span></header>
-      <div class="canvas"><div class="viewport" id="right-viewport"></div></div>
-    </section>
-  </div>
+${PANEL_BODY_HTML}
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;

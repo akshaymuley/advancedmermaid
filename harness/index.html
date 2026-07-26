@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Mermaid Compare — webview harness</title>
+    <!--
+      VS Code injects these theme variables into every webview. Outside the host they are
+      undefined and the panel renders as unstyled text, so stand in an approximation of the
+      Dark+ palette. Layout and behaviour come from the real media/webview.css below.
+    -->
+    <style>
+      :root {
+        --vscode-font-family: system-ui, sans-serif;
+        --vscode-editor-font-family: ui-monospace, Consolas, monospace;
+        --vscode-foreground: #cccccc;
+        --vscode-panel-border: #3c3c3c;
+        --vscode-errorForeground: #f48771;
+        --vscode-button-secondaryBackground: #3a3d41;
+        --vscode-button-secondaryForeground: #ffffff;
+        --vscode-button-secondaryHoverBackground: #45494e;
+        --vscode-inputValidation-errorBackground: #5a1d1d;
+        --vscode-inputValidation-errorBorder: #be1100;
+      }
+      body {
+        background: #1e1e1e;
+      }
+    </style>
+    <link rel="stylesheet" href="../media/webview.css" />
+  </head>
+  <body class="vscode-dark">
+    <script src="../dist/harness.js"></script>
+  </body>
+</html>

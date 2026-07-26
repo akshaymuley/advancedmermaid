@@ -4,9 +4,9 @@ Iterative delivery plan for the extension. Each milestone is independently shipp
 it ends with a working `.vsix` and a version bump. Order is deliberate — earlier
 milestones remove friction that later ones would otherwise pay repeatedly.
 
-**Status:** v0.2.0. Renders two refs side-by-side with synced pan/zoom, follows edits to the
-compared file, and reports git failures by kind. Not yet published.
-Milestones 1 and 2 complete.
+**Status:** v0.3.0. Renders two refs side-by-side, opens framed, follows edits to the compared
+file, and reports git failures by kind. Panes pan/zoom together or independently.
+Not yet published. Milestones 1–3 complete.
 
 ---
 
@@ -17,10 +17,14 @@ Milestones 1 and 2 complete.
 | `src/extension.ts` | 93 | Command registration, `compareWithRef` orchestration |
 | `src/git.ts` | 45 | Reads a file at a git ref; throws a classified `GitFailureError` |
 | `src/git-errors.ts` | 67 | Pure failure classification + user-facing messages |
-| `src/comparePanel.ts` | 193 | Webview panel singleton, HTML/CSP, edit tracking + refresh |
+| `src/comparePanel.ts` | 184 | Webview panel singleton, CSP shell, edit tracking + refresh |
 | `src/debounce.ts` | 45 | Pure debounce with `cancel()` / `flush()` |
-| `src/webview/main.ts` | 153 | Mermaid render, shared pan/zoom, last-good-render fallback |
+| `src/webview/main.ts` | 304 | Mermaid render, per-pane pan/zoom, last-good-render fallback |
+| `src/webview/view-math.ts` | 78 | Pure fit / zoom-anchor / clamp maths |
+| `src/webview/panel-body.ts` | 28 | The panel DOM, shared by the real panel and the harness |
 | `src/webview/diagram-source.ts` | 7 | `isBlankDiagram()` |
+| `src/test/harness/main.ts` | 61 | Boots the webview outside VS Code for Playwright |
+| `scripts/verify-view.mjs` | 266 | `npm run verify:view` — 34 browser checks + screenshots |
 | `src/mermaid-file.ts` | 19 | `isMermaidFile()` — pure file-type guard |
 | `src/test/vscode-mock.ts` | 64 | Shared `vscode` module mock (aliased in `vitest.config.ts`) |
 
@@ -29,9 +33,9 @@ CI runs `typecheck` + `test` + `build` on every PR. `main` is PR-protected.
 
 ### Known gaps (feeding the milestones below)
 
-- **View controls are minimal** — only "Reset view" (hardcoded to `x:40, y:40, scale:1`).
-  No fit-to-view, no zoom buttons, no per-pane independent mode.
 - **Single global panel.** Comparing a second file replaces the first.
+- **`verify:view` is not in CI.** It needs a ~130 MB Chromium download, which isn't worth it on
+  every PR yet. Revisit if the webview grows.
 - **Not publishable yet** — no icon, no CHANGELOG, no marketplace pipeline.
 
 ---
@@ -76,12 +80,21 @@ CI runs `typecheck` + `test` + `build` on every PR. `main` is PR-protected.
 
 *The current pan/zoom is usable but blunt. This is the most visible quality-of-life jump.*
 
-- [ ] **Fit to view** — compute scale/offset so the larger diagram fits its pane; button + keybinding.
-      (Pure function `computeFitView(content, viewport)` — prime TDD target.)
-- [ ] Fit on first render instead of the hardcoded `x:40, y:40, scale:1`.
-- [ ] Zoom in/out buttons and a zoom-level readout; keyboard shortcuts (`+`/`-`/`0`).
-- [ ] **Sync toggle** — let the two panes pan/zoom independently when unlocked.
-- [ ] Clamp zoom to a sane range so the diagram can't be lost off-canvas.
+- [x] **Fit to view** — `computeFitView(content, viewport)` in `src/webview/view-math.ts`;
+      Fit button + `0`. While synced, both panes fit the larger diagram so a shared scale still
+      means "same size on screen".
+- [x] Fit on first render instead of the hardcoded `x:40, y:40, scale:1`. Refits on resize until
+      the user first pans or zooms, after which their framing is never overridden.
+- [x] Zoom in/out buttons and a zoom-level readout; keyboard shortcuts (`+`/`-`/`0`).
+      **"Reset view" was replaced by "Fit"** — it was approximating fit with three hardcoded numbers.
+- [x] **Sync toggle** — per-pane views; re-syncing adopts the pane last interacted with.
+- [x] Clamp zoom to 0.1×–8×; `zoomAt` clamps before deriving offsets, so hitting a limit is a
+      true no-op rather than sliding the diagram under a stationary cursor.
+- [x] *Beyond the original list:* a **Playwright harness** (`harness/index.html`,
+      `npm run verify:view`) loads the real webview outside VS Code and asserts the view
+      behaviour in Chromium. It caught a fit bug that the unit tests could not: `getBBox()`
+      returns SVG user units, not layout pixels, so the first implementation computed a
+      plausible-looking scale that still overflowed the pane.
 
 ## Milestone 4 — Publish (v1.0.0)
 
