@@ -27,6 +27,8 @@ Git diffs of `.mmd` files show text changes, but a one-line edit can completely 
 - [ ] Compare two arbitrary files or two refs
 - [ ] Export comparison as image
 
+See [PLAN.md](PLAN.md) for the full milestone-by-milestone plan.
+
 Contributions toward any of these are very welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Development
