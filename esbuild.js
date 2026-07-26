@@ -25,14 +25,30 @@ async function main() {
     minify: production,
   });
 
+  const contexts = [extension, webview];
+
+  // The Playwright harness (harness/index.html) is a development tool; keep it out of the .vsix.
+  if (!production) {
+    contexts.push(
+      await esbuild.context({
+        entryPoints: ['src/test/harness/main.ts'],
+        bundle: true,
+        format: 'iife',
+        platform: 'browser',
+        outfile: 'dist/harness.js',
+        sourcemap: true,
+      })
+    );
+  }
+
   if (watch) {
-    await Promise.all([extension.watch(), webview.watch()]);
+    await Promise.all(contexts.map((c) => c.watch()));
     console.log('watching...');
   } else {
-    await extension.rebuild();
-    await webview.rebuild();
-    await extension.dispose();
-    await webview.dispose();
+    for (const context of contexts) {
+      await context.rebuild();
+      await context.dispose();
+    }
   }
 }
 

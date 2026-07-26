@@ -11,7 +11,10 @@ Git diffs of `.mmd` files show text changes, but a one-line edit can completely 
 - **Compare Diagram with HEAD** — one click in the editor title bar (for `.mmd` / `.mermaid` files) to see the working-tree version next to the last committed version.
 - **Compare Diagram with Ref...** — compare against any branch, tag, or commit.
 - SCM view integration — right-click a changed file in the Source Control panel.
-- Synced pan & zoom across both panes; follows your VS Code light/dark theme.
+- Diagrams open **fitted** to their panes. Zoom with the wheel, the buttons, or `+`/`-`/`0`.
+- Pan & zoom stay **synced** across both panes — or unlock them to inspect each side on its own.
+- **Live** — the working-tree pane follows your edits as you type.
+- Follows your VS Code light/dark theme.
 - Mermaid is bundled — works fully offline.
 
 ## Usage

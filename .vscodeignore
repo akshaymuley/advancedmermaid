@@ -2,9 +2,15 @@
 .github/**
 src/**
 samples/**
+harness/**
+scripts/**
 node_modules/**
 esbuild.js
 tsconfig.json
+vitest.config.ts
 .gitignore
 CONTRIBUTING.md
+PLAN.md
+dist/harness.js
+dist/view-screenshots/**
 **/*.map
