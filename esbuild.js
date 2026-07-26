@@ -27,7 +27,8 @@ async function main() {
 
   const contexts = [extension, webview];
 
-  // The Playwright harness (harness/index.html) is a development tool; keep it out of the .vsix.
+  // Test tooling: the Playwright harness (harness/index.html) and the @vscode/test-electron
+  // suite. Both are development-only; keep them out of the .vsix.
   if (!production) {
     contexts.push(
       await esbuild.context({
@@ -36,6 +37,15 @@ async function main() {
         format: 'iife',
         platform: 'browser',
         outfile: 'dist/harness.js',
+        sourcemap: true,
+      }),
+      await esbuild.context({
+        entryPoints: ['src/test/integration/index.ts'],
+        bundle: true,
+        format: 'cjs',
+        platform: 'node',
+        external: ['vscode', 'mocha'],
+        outfile: 'dist/test/suite.test.js',
         sourcemap: true,
       })
     );
