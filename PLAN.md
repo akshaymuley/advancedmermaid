@@ -4,8 +4,9 @@ Iterative delivery plan for the extension. Each milestone is independently shipp
 it ends with a working `.vsix` and a version bump. Order is deliberate — earlier
 milestones remove friction that later ones would otherwise pay repeatedly.
 
-**Status:** v0.1.0 scaffold works end-to-end (render two refs side-by-side, synced pan/zoom).
-Not yet published. Milestone 1 complete — Vitest harness in place and running in CI.
+**Status:** v0.2.0. Renders two refs side-by-side with synced pan/zoom, follows edits to the
+compared file, and reports git failures by kind. Not yet published.
+Milestones 1 and 2 complete.
 
 ---
 
@@ -13,20 +14,21 @@ Not yet published. Milestone 1 complete — Vitest harness in place and running 
 
 | File | Lines | Role |
 |---|---|---|
-| `src/extension.ts` | 66 | Command registration, `compareWithRef` orchestration |
-| `src/git.ts` | 29 | Reads a file at a git ref via the built-in `vscode.git` API |
-| `src/comparePanel.ts` | 113 | Webview panel singleton + HTML/CSP scaffold |
-| `src/webview/main.ts` | 118 | Mermaid render, shared pan/zoom, error display |
+| `src/extension.ts` | 93 | Command registration, `compareWithRef` orchestration |
+| `src/git.ts` | 45 | Reads a file at a git ref; throws a classified `GitFailureError` |
+| `src/git-errors.ts` | 67 | Pure failure classification + user-facing messages |
+| `src/comparePanel.ts` | 193 | Webview panel singleton, HTML/CSP, edit tracking + refresh |
+| `src/debounce.ts` | 45 | Pure debounce with `cancel()` / `flush()` |
+| `src/webview/main.ts` | 153 | Mermaid render, shared pan/zoom, last-good-render fallback |
+| `src/webview/diagram-source.ts` | 7 | `isBlankDiagram()` |
 | `src/mermaid-file.ts` | 19 | `isMermaidFile()` — pure file-type guard |
-| `src/test/vscode-mock.ts` | 71 | Shared `vscode` module mock (aliased in `vitest.config.ts`) |
+| `src/test/vscode-mock.ts` | 64 | Shared `vscode` module mock (aliased in `vitest.config.ts`) |
 
 Build is esbuild (two bundles: node CJS extension + IIFE browser webview).
-CI runs `typecheck` + `build` on every PR. `main` is PR-protected.
+CI runs `typecheck` + `test` + `build` on every PR. `main` is PR-protected.
 
 ### Known gaps (feeding the milestones below)
 
-- **Panel is stale after edits.** Once open, the comparison never refreshes — editing the
-  `.mmd` file leaves the right pane showing old content.
 - **View controls are minimal** — only "Reset view" (hardcoded to `x:40, y:40, scale:1`).
   No fit-to-view, no zoom buttons, no per-pane independent mode.
 - **Single global panel.** Comparing a second file replaces the first.
@@ -54,13 +56,21 @@ CI runs `typecheck` + `build` on every PR. `main` is PR-protected.
 - [x] **File-type validation.** Extract `isMermaidFile(uri)`; reject non-`.mmd`/`.mermaid`
       with a clear message instead of rendering garbage. (Palette can bypass the `when` clause.)
       *Landed with Milestone 1 as the first real TDD task on the new harness.*
-- [ ] **Live refresh.** Watch the compared document; re-render the right pane on save
-      (and optionally on debounced edit). Requires tracking the source `uri` on the panel.
-- [ ] **Better git failure messages.** Distinguish "not in a repo", "ref doesn't exist", and
-      "file didn't exist at that ref" — currently all collapse into one string.
-- [ ] **Extract the ref/path logic** out of `git.ts` into a pure helper so it is testable
-      without a live git extension; leave a thin wrapper.
-- [ ] Handle the empty-diagram and whitespace-only cases without a mermaid parse error.
+- [x] **Live refresh.** The panel tracks the source `uri` and re-renders the right pane 300 ms
+      after typing stops (`src/debounce.ts`), immediately on save. A failed render mid-edit
+      keeps the last good diagram and flags the error in the pane header instead of blanking it.
+- [x] **Better git failure messages.** `classifyGitFailure` distinguishes no-git-extension,
+      not-a-repository, unknown-ref, and path-not-in-ref.
+- [x] **Extract the ref/path logic** out of `git.ts` into a pure helper — the logic worth
+      extracting turned out to be error classification (`src/git-errors.ts`), not path munging;
+      the git API relativizes `fsPath` itself. `git.ts` is now a thin wrapper throwing
+      `GitFailureError`.
+- [x] Handle the empty-diagram and whitespace-only cases without a mermaid parse error
+      (`isBlankDiagram` → `(empty)` placeholder).
+- [x] *Beyond the original list:* a file that doesn't exist at the ref now renders as an empty
+      left pane labelled `<ref> (not present)` rather than an error — comparing a **new**
+      diagram against HEAD is a valid comparison. A toolbar **Refresh** button re-runs
+      `git show` so the ref side can pick up new commits.
 
 ## Milestone 3 — View controls (v0.3.0)
 

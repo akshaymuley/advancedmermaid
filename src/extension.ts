@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { getGitContent } from './git';
-import { ComparePanel } from './comparePanel';
+import { getGitContent, GitFailureError } from './git';
+import { describeGitFailure } from './git-errors';
+import { ComparePanel, Side, workingTreeSide } from './comparePanel';
 import { isMermaidFile } from './mermaid-file';
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -34,6 +35,21 @@ function toUri(arg: unknown): vscode.Uri | undefined {
   return vscode.window.activeTextEditor?.document.uri;
 }
 
+/**
+ * The ref side of the comparison. A file that doesn't exist at the ref is not a failure —
+ * it means the diagram is new, and empty-vs-diagram is exactly the comparison to show.
+ */
+async function loadRefSide(uri: vscode.Uri, ref: string): Promise<Side> {
+  try {
+    return { label: ref, content: await getGitContent(uri, ref) };
+  } catch (err) {
+    if (err instanceof GitFailureError && err.failure.kind === 'pathNotInRef') {
+      return { label: `${ref} (not present)`, content: '' };
+    }
+    throw err;
+  }
+}
+
 async function compareWithRef(
   context: vscode.ExtensionContext,
   uri: vscode.Uri | undefined,
@@ -53,23 +69,25 @@ async function compareWithRef(
   }
 
   const document = await vscode.workspace.openTextDocument(uri);
-  const current = document.getText();
+  const loadLeft = (): Promise<Side> => loadRefSide(uri, ref);
 
-  let old: string;
+  let left: Side;
   try {
-    old = await getGitContent(uri, ref);
+    left = await loadLeft();
   } catch (err) {
     vscode.window.showErrorMessage(
-      `Mermaid Compare: could not read "${ref}" version of ${path.basename(uri.fsPath)}. ${
-        err instanceof Error ? err.message : String(err)
-      }`
+      err instanceof GitFailureError
+        ? `Mermaid Compare: ${describeGitFailure(err.failure)}`
+        : `Mermaid Compare: could not read "${ref}" version of ${path.basename(uri.fsPath)}. ${
+            err instanceof Error ? err.message : String(err)
+          }`
     );
     return;
   }
 
-  ComparePanel.show(context.extensionUri, {
-    title: path.basename(uri.fsPath),
-    left: { label: ref, content: old },
-    right: { label: document.isDirty ? 'Editor (unsaved)' : 'Working Tree', content: current },
-  });
+  ComparePanel.show(
+    context.extensionUri,
+    { uri, ref, title: path.basename(uri.fsPath), left, right: workingTreeSide(document) },
+    loadLeft
+  );
 }
