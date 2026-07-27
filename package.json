@@ -2,7 +2,7 @@
   "name": "mermaid-diagram-compare",
   "displayName": "Mermaid Diagram Compare",
   "description": "Compare rendered Mermaid diagrams instead of code — side-by-side visual diff against any git ref.",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "publisher": "akshaymuley",
   "license": "MIT",
   "icon": "media/icon.png",

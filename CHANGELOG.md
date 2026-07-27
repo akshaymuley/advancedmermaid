@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Nothing yet.
 
+## [1.0.0] — 2026-07-27
+
+First Marketplace release. No behaviour changes since 0.4.0 — the extension was verified by hand
+from a packaged `.vsix` in a real VS Code, which is what 0.4.0 was waiting on.
+
 ## [0.4.0] — 2026-07-26
 
 Release readiness. Not published to the Marketplace.
@@ -74,7 +79,8 @@ Release readiness. Not published to the Marketplace.
 - Rejects files that aren't `.mmd` / `.mermaid`, including via the command palette.
 - Mermaid is bundled — the extension works offline.
 
-[Unreleased]: https://github.com/akshaymuley/AdvancedMermaid/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/akshaymuley/AdvancedMermaid/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/akshaymuley/AdvancedMermaid/compare/v0.4.0...v1.0.0
 [0.4.0]: https://github.com/akshaymuley/AdvancedMermaid/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/akshaymuley/AdvancedMermaid/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/akshaymuley/AdvancedMermaid/compare/v0.1.0...v0.2.0
