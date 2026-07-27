@@ -4,9 +4,10 @@ Iterative delivery plan for the extension. Each milestone is independently shipp
 it ends with a working `.vsix` and a version bump. Order is deliberate — earlier
 milestones remove friction that later ones would otherwise pay repeatedly.
 
-**Status:** v0.4.0. Renders two refs side-by-side, opens framed, follows edits to the compared
+**Status:** v1.0.0. Renders two refs side-by-side, opens framed, follows edits to the compared
 file, and reports git failures by kind. Panes pan/zoom together or independently.
-Milestones 1–3 complete; Milestone 4 is release-ready but **not published** — see Part 2 below.
+Milestones 1–3 complete; Milestone 4 Part 1 done and the extension has been hand-verified from a
+packaged `.vsix`. Publishing is what remains — see Part 2 below.
 
 ---
 
@@ -122,10 +123,11 @@ Split in two: everything *up to* the tag, then the publish itself.
 
 ### Part 2 — publish (v1.0.0) — **next task, yours**
 
-- [ ] **Manual F5 pass.** The integration suite proves the extension starts and the panel
-      handshakes; it says nothing about how the toolbar looks against a real theme or whether
-      the host swallows `+`/`-`/`0`.
-- [ ] Bump to `1.0.0` and move the `[Unreleased]` changelog section.
+- [x] **Manual pass in a real VS Code.** Done from a packaged `.vsix` rather than F5 — that also
+      exercises the `.vscodeignore` bundle, which F5 doesn't.
+- [x] Bump to `1.0.0` and add the changelog entry. `[Unreleased]` was empty, so 1.0.0 is a
+      release marker, not a behaviour change. The lockfile had been missed at 0.4.0 and is now
+      back in step with `package.json`.
 - [ ] Create the Marketplace publisher `akshaymuley`, generate the PAT, add the `VSCE_PAT`
       secret (see `RELEASING.md` — the all-organizations scope is the step that usually bites).
 - [ ] `git tag v1.0.0 && git push origin v1.0.0`.
