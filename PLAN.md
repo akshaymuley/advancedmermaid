@@ -25,7 +25,7 @@ Milestone 5 — Mermaid fences inside Markdown.
 | `src/webview/panel-body.ts` | 28 | The panel DOM, shared by the real panel and the harness |
 | `src/webview/diagram-source.ts` | 7 | `isBlankDiagram()` |
 | `src/test/harness/main.ts` | 61 | Boots the webview outside VS Code for Playwright |
-| `scripts/verify-view.mjs` | 266 | `npm run verify:view` — 34 browser checks + screenshots |
+| `scripts/verify-view.mjs` | 238 | `npm run verify:view` — 34 browser checks + screenshots |
 | `scripts/make-vscode-screenshots.mjs` | 254 | Captures `docs/images/` from a real VS Code over CDP |
 | `src/test/screenshots/driver.ts` | 67 | Sequences the panel states for that capture, in-host |
 | `src/mermaid-file.ts` | 19 | `isMermaidFile()` — pure file-type guard |
