@@ -145,6 +145,11 @@ Split in two: everything *up to* the tag, then the publish itself.
       command sent before the editor is active silently isn't there to match.
 - [x] Open VSX publishing, as a second conditional step on the same tag, gated on `OVSX_PAT`
       exactly as the Marketplace step is on `VSCE_PAT`.
+      **Registration is deferred** — no `OVSX_PAT` secret exists yet, so the step skips and
+      nothing has been published there. Setup is in `RELEASING.md`; the Eclipse account's GitHub
+      Username field and the Publisher Agreement are the two things that fail silently if missed.
+      Open VSX does not backfill: only tags pushed *after* the secret exists will appear, so
+      v1.0.1 and earlier stay Marketplace-only.
 
 ## Milestone 5 — Broader inputs (v1.1.0)
 
