@@ -9,9 +9,15 @@ export type GitFailure =
   | { kind: 'pathNotInRef'; ref: string; file: string }
   | { kind: 'unknown'; detail: string };
 
-/** Wording is git's, not ours, so match loosely and always leave a fallback. */
+/**
+ * Wording is git's, not ours, so match loosely and always leave a fallback.
+ *
+ * "relative path not found" is the built-in git extension's own wording, not git's: it resolves
+ * the path against the ref's tree before shelling out, so a file absent at the ref never reaches
+ * `git show` and none of git's phrasing appears.
+ */
 const PATTERNS: ReadonlyArray<[RegExp, GitFailure['kind']]> = [
-  [/does not exist in|exists on disk, but not in/i, 'pathNotInRef'],
+  [/does not exist in|exists on disk, but not in|relative path not found/i, 'pathNotInRef'],
   [/unknown revision|invalid object name|bad revision|ambiguous argument/i, 'unknownRef'],
   [/not a git repository/i, 'notARepository'],
 ];

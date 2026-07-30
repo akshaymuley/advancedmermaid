@@ -20,6 +20,11 @@ describe('classifyGitFailure', () => {
   it.each([
     "fatal: path 'diagram.mmd' does not exist in 'HEAD'",
     "fatal: path 'diagram.mmd' exists on disk, but not in 'HEAD'",
+    // What the built-in git extension actually throws — it resolves the path against the ref's
+    // tree itself and never reaches `git show`, so none of git's own wording appears. Every
+    // other case here is raw CLI stderr, which is why this one went unnoticed: comparing a
+    // brand-new diagram against HEAD reported "unknown" and opened no panel at all.
+    'Git relative path not found. Was looking for samples/new.mmd among [\n  "README.md"\n]',
   ])('recognises a path missing at the ref: %s', (message) => {
     expect(classifyGitFailure(new Error(message), ctx)).toEqual({
       kind: 'pathNotInRef',
