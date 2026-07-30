@@ -7,7 +7,9 @@ milestones remove friction that later ones would otherwise pay repeatedly.
 **Status:** v1.0.1 published as **Advanced Mermaid** (`AkshayDMuley.advanced-mermaid`), with
 Markdown fence support merged and awaiting a v1.1.0 release. Renders two refs side-by-side, opens
 framed, follows edits to the compared file, and reports git failures by kind. Panes pan/zoom
-together or independently. Milestones 1–4 complete; Milestone 5 has its first item done.
+together or independently, and each comparison gets its own tab. Milestones 1–4 complete;
+Milestone 5 has Markdown fences and multiple panels done, leaving the two-refs and two-files
+items.
 
 ---
 
@@ -15,10 +17,10 @@ together or independently. Milestones 1–4 complete; Milestone 5 has its first 
 
 | File | Lines | Role |
 |---|---|---|
-| `src/extension.ts` | 147 | Command registration, fence picker, `compareWithRef` orchestration |
+| `src/extension.ts` | 153 | Command registration, fence picker, `compareWithRef` orchestration |
 | `src/git.ts` | 45 | Reads a file at a git ref; throws a classified `GitFailureError` |
 | `src/git-errors.ts` | 73 | Pure failure classification + user-facing messages |
-| `src/comparePanel.ts` | 194 | Webview panel singleton, CSP shell, edit tracking + refresh |
+| `src/comparePanel.ts` | 203 | Webview panel registry, CSP shell, edit tracking + refresh |
 | `src/debounce.ts` | 45 | Pure debounce with `cancel()` / `flush()` |
 | `src/webview/main.ts` | 304 | Mermaid render, per-pane pan/zoom, last-good-render fallback |
 | `src/webview/view-math.ts` | 78 | Pure fit / zoom-anchor / clamp maths |
@@ -31,6 +33,7 @@ together or independently. Milestones 1–4 complete; Milestone 5 has its first 
 | `src/mermaid-file.ts` | 28 | `classifySource()` — pure file-type guard (mermaid vs markdown) |
 | `src/mermaid-fences.ts` | 73 | Pure ```mermaid fence parser for Markdown |
 | `src/diagram-selection.ts` | 24 | Picks the diagram a side shows; the one place both sides agree |
+| `src/panel-key.ts` | 21 | Pure panel identity: file + ref + fence |
 | `src/test/vscode-mock.ts` | 66 | Shared `vscode` module mock (aliased in `vitest.config.ts`) |
 
 Build is esbuild (two bundles: node CJS extension + IIFE browser webview).
@@ -38,7 +41,11 @@ CI runs `typecheck` + `test` + `build` on every PR. `main` is PR-protected.
 
 ### Known gaps (feeding the milestones below)
 
-- **Single global panel.** Comparing a second file replaces the first.
+- **Hidden panels stay resident.** `retainContextWhenHidden` keeps each panel's pan/zoom state
+  alive, which costs memory once several are open. Dropping it would reset the view every time a
+  tab is hidden, so it stays until someone actually feels the cost.
+- **Panels don't survive a window reload.** No `WebviewPanelSerializer` is registered, so a
+  reload closes every comparison. Never handled; more visible now that several can be open.
 - **`verify:view` is not in CI.** It needs a ~130 MB Chromium download, which isn't worth it on
   every PR yet. Revisit if the webview grows. (`test:integration` *is* in CI.)
 - **No usage feedback yet.** Published, hand-verified from a `.vsix`, but nobody has lived with
@@ -174,7 +181,12 @@ Split in two: everything *up to* the tag, then the publish itself.
       committed and absent at HEAD.
 - [ ] **Compare two arbitrary refs** (not just working tree vs. ref).
 - [ ] **Compare two arbitrary files.**
-- [ ] Multiple concurrent panels instead of the current singleton, keyed by source URI.
+- [x] Multiple concurrent panels instead of the current singleton. Keyed by **file + ref + fence**
+      (`src/panel-key.ts`), not by source URI as originally written — URI alone would have
+      re-created the very collision the item exists to remove, since the Markdown work made two
+      diagrams in one file the ordinary case. Parts are length-prefixed rather than joined by a
+      separator, because a ref is whatever the user typed and plain concatenation lets the same
+      characters split two ways into two different comparisons.
 
 ## Milestone 6 — Visual diff modes (v1.2.0)
 

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Several comparisons open at once.** A panel is now identified by file, ref, and diagram
+  rather than being a single global window, so two diagrams from one Markdown file — or one file
+  against two different refs — can sit side by side. Re-running an identical comparison reveals
+  its existing tab instead of opening a duplicate.
 - **Mermaid blocks inside Markdown.** `.md` and `.markdown` files can now be compared: the
   extension finds their ```` ```mermaid ```` fences and, when there is more than one, asks which
   to compare — listed by the heading above each. Diagrams pair with the ref by position, so the
