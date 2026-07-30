@@ -3,7 +3,9 @@ import * as path from 'path';
 import { getGitContent, GitFailureError } from './git';
 import { describeGitFailure } from './git-errors';
 import { ComparePanel, Side, workingTreeSide } from './comparePanel';
-import { isMermaidFile } from './mermaid-file';
+import { selectDiagram } from './diagram-selection';
+import { classifySource, SourceKind } from './mermaid-file';
+import { Fence, findMermaidFences } from './mermaid-fences';
 
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
@@ -37,17 +39,47 @@ function toUri(arg: unknown): vscode.Uri | undefined {
 
 /**
  * The ref side of the comparison. A file that doesn't exist at the ref is not a failure —
- * it means the diagram is new, and empty-vs-diagram is exactly the comparison to show.
+ * it means the diagram is new, and empty-vs-diagram is exactly the comparison to show. The same
+ * goes for a Markdown file that simply had fewer diagrams back then.
  */
-async function loadRefSide(uri: vscode.Uri, ref: string): Promise<Side> {
+async function loadRefSide(
+  uri: vscode.Uri,
+  ref: string,
+  kind: SourceKind,
+  fence?: number
+): Promise<Side> {
   try {
-    return { label: ref, content: await getGitContent(uri, ref) };
+    const text = await getGitContent(uri, ref);
+    const { content, missing } = selectDiagram(text, kind, fence);
+    return { label: missing ? `${ref} (no diagram ${(fence ?? 0) + 1})` : ref, content };
   } catch (err) {
     if (err instanceof GitFailureError && err.failure.kind === 'pathNotInRef') {
       return { label: `${ref} (not present)`, content: '' };
     }
     throw err;
   }
+}
+
+/**
+ * Which diagram to compare. One fence is unambiguous; several need the user. Cancelling the pick
+ * aborts silently, matching how an empty ref from `showInputBox` does.
+ */
+export async function pickFence(fences: Fence[]): Promise<number | undefined> {
+  if (fences.length === 1) {
+    return 0;
+  }
+
+  const picked = await vscode.window.showQuickPick(
+    fences.map((fence) => ({
+      label: fence.heading ?? `Diagram ${fence.index + 1}`,
+      description: `line ${fence.line + 1}`,
+      detail: fence.content.split('\n').find((line) => line.trim() !== '') ?? '(empty)',
+      index: fence.index,
+    })),
+    { title: 'Which diagram?', placeHolder: 'Select a mermaid block to compare' }
+  );
+
+  return picked?.index;
 }
 
 async function compareWithRef(
@@ -60,16 +92,38 @@ async function compareWithRef(
     return;
   }
 
+  const name = path.basename(uri.fsPath);
+
   // The menu `when` clauses gate on resourceExtname, but the command palette bypasses them.
-  if (!isMermaidFile(uri)) {
+  const kind = classifySource(uri);
+  if (!kind) {
     vscode.window.showErrorMessage(
-      `Mermaid Compare: ${path.basename(uri.fsPath)} is not a Mermaid file (.mmd or .mermaid).`
+      `Mermaid Compare: ${name} is not a Mermaid file (.mmd, .mermaid, .md or .markdown).`
     );
     return;
   }
 
   const document = await vscode.workspace.openTextDocument(uri);
-  const loadLeft = (): Promise<Side> => loadRefSide(uri, ref);
+
+  let fence: number | undefined;
+  let title = name;
+  if (kind === 'markdown') {
+    const fences = findMermaidFences(document.getText());
+    if (fences.length === 0) {
+      vscode.window.showErrorMessage(`Mermaid Compare: ${name} contains no \`\`\`mermaid blocks.`);
+      return;
+    }
+
+    fence = await pickFence(fences);
+    if (fence === undefined) {
+      return; // Cancelled.
+    }
+    if (fences.length > 1) {
+      title = `${name} — diagram ${fence + 1} of ${fences.length}`;
+    }
+  }
+
+  const loadLeft = (): Promise<Side> => loadRefSide(uri, ref, kind, fence);
 
   let left: Side;
   try {
@@ -78,7 +132,7 @@ async function compareWithRef(
     vscode.window.showErrorMessage(
       err instanceof GitFailureError
         ? `Mermaid Compare: ${describeGitFailure(err.failure)}`
-        : `Mermaid Compare: could not read "${ref}" version of ${path.basename(uri.fsPath)}. ${
+        : `Mermaid Compare: could not read "${ref}" version of ${name}. ${
             err instanceof Error ? err.message : String(err)
           }`
     );
@@ -87,7 +141,7 @@ async function compareWithRef(
 
   ComparePanel.show(
     context.extensionUri,
-    { uri, ref, title: path.basename(uri.fsPath), left, right: workingTreeSide(document) },
+    { uri, ref, title, fence, left, right: workingTreeSide(document, fence) },
     loadLeft
   );
 }

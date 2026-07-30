@@ -49,7 +49,7 @@
       "editor/title": [
         {
           "command": "mermaidCompare.compareWithHead",
-          "when": "resourceExtname == .mmd || resourceExtname == .mermaid",
+          "when": "resourceExtname == .mmd || resourceExtname == .mermaid || resourceExtname == .md || resourceExtname == .markdown",
           "group": "navigation"
         }
       ],
@@ -62,11 +62,11 @@
       "commandPalette": [
         {
           "command": "mermaidCompare.compareWithHead",
-          "when": "resourceExtname == .mmd || resourceExtname == .mermaid"
+          "when": "resourceExtname == .mmd || resourceExtname == .mermaid || resourceExtname == .md || resourceExtname == .markdown"
         },
         {
           "command": "mermaidCompare.compareWithRef",
-          "when": "resourceExtname == .mmd || resourceExtname == .mermaid"
+          "when": "resourceExtname == .mmd || resourceExtname == .mermaid || resourceExtname == .md || resourceExtname == .markdown"
         }
       ]
     }

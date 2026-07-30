@@ -4,10 +4,10 @@ Iterative delivery plan for the extension. Each milestone is independently shipp
 it ends with a working `.vsix` and a version bump. Order is deliberate — earlier
 milestones remove friction that later ones would otherwise pay repeatedly.
 
-**Status:** v1.0.1, published as **Advanced Mermaid** (`AkshayDMuley.advanced-mermaid`). Renders
-two refs side-by-side, opens framed, follows edits to the compared file, and reports git failures
-by kind. Panes pan/zoom together or independently. Milestones 1–4 complete. Next up is
-Milestone 5 — Mermaid fences inside Markdown.
+**Status:** v1.0.1 published as **Advanced Mermaid** (`AkshayDMuley.advanced-mermaid`), with
+Markdown fence support merged and awaiting a v1.1.0 release. Renders two refs side-by-side, opens
+framed, follows edits to the compared file, and reports git failures by kind. Panes pan/zoom
+together or independently. Milestones 1–4 complete; Milestone 5 has its first item done.
 
 ---
 
@@ -15,10 +15,10 @@ Milestone 5 — Mermaid fences inside Markdown.
 
 | File | Lines | Role |
 |---|---|---|
-| `src/extension.ts` | 93 | Command registration, `compareWithRef` orchestration |
+| `src/extension.ts` | 147 | Command registration, fence picker, `compareWithRef` orchestration |
 | `src/git.ts` | 45 | Reads a file at a git ref; throws a classified `GitFailureError` |
-| `src/git-errors.ts` | 67 | Pure failure classification + user-facing messages |
-| `src/comparePanel.ts` | 184 | Webview panel singleton, CSP shell, edit tracking + refresh |
+| `src/git-errors.ts` | 73 | Pure failure classification + user-facing messages |
+| `src/comparePanel.ts` | 194 | Webview panel singleton, CSP shell, edit tracking + refresh |
 | `src/debounce.ts` | 45 | Pure debounce with `cancel()` / `flush()` |
 | `src/webview/main.ts` | 304 | Mermaid render, per-pane pan/zoom, last-good-render fallback |
 | `src/webview/view-math.ts` | 78 | Pure fit / zoom-anchor / clamp maths |
@@ -28,8 +28,10 @@ Milestone 5 — Mermaid fences inside Markdown.
 | `scripts/verify-view.mjs` | 238 | `npm run verify:view` — 34 browser checks + screenshots |
 | `scripts/make-vscode-screenshots.mjs` | 254 | Captures `docs/images/` from a real VS Code over CDP |
 | `src/test/screenshots/driver.ts` | 67 | Sequences the panel states for that capture, in-host |
-| `src/mermaid-file.ts` | 19 | `isMermaidFile()` — pure file-type guard |
-| `src/test/vscode-mock.ts` | 64 | Shared `vscode` module mock (aliased in `vitest.config.ts`) |
+| `src/mermaid-file.ts` | 28 | `classifySource()` — pure file-type guard (mermaid vs markdown) |
+| `src/mermaid-fences.ts` | 73 | Pure ```mermaid fence parser for Markdown |
+| `src/diagram-selection.ts` | 24 | Picks the diagram a side shows; the one place both sides agree |
+| `src/test/vscode-mock.ts` | 66 | Shared `vscode` module mock (aliased in `vitest.config.ts`) |
 
 Build is esbuild (two bundles: node CJS extension + IIFE browser webview).
 CI runs `typecheck` + `test` + `build` on every PR. `main` is PR-protected.
@@ -81,6 +83,10 @@ CI runs `typecheck` + `test` + `build` on every PR. `main` is PR-protected.
       left pane labelled `<ref> (not present)` rather than an error — comparing a **new**
       diagram against HEAD is a valid comparison. A toolbar **Refresh** button re-runs
       `git show` so the ref side can pick up new commits.
+      *Correction, Milestone 5:* this never actually worked. The classification was written
+      against git's stderr, but the built-in git extension throws its own wording, so the case
+      fell through to `unknown` and suppressed the panel. Fixed and covered by an integration
+      test during the Markdown work.
 
 ## Milestone 3 — View controls (v0.3.0)
 
@@ -153,8 +159,19 @@ Split in two: everything *up to* the tag, then the publish itself.
 
 ## Milestone 5 — Broader inputs (v1.1.0)
 
-- [ ] **Mermaid code blocks inside Markdown** — detect ```` ```mermaid ```` fences, and when a
-      file has several, let the user pick which block to compare.
+- [x] **Mermaid code blocks inside Markdown** — `src/mermaid-fences.ts` finds the fences and
+      `src/diagram-selection.ts` is the one place that knows a `.mmd` file *is* a diagram while a
+      `.md` file merely contains some; both sides of the comparison go through it. Several fences
+      prompt a QuickPick labelled by the heading above each. Fences pair across versions **by
+      position** — simple and explainable, at the cost of shifting when a diagram is inserted
+      above another, which the pane labels make visible.
+- [x] *Beyond the original list:* comparing a file that doesn't exist at the ref opened **no panel
+      at all** — the documented empty-vs-new behaviour had never worked through the real git
+      extension, which resolves the path against the ref's tree and reports "relative path not
+      found", wording no git command produces. `git-errors.ts` classified it as `unknown`. Caught
+      only because Markdown made new-file comparisons common enough to trip over; now covered by
+      an integration test that creates its fixture at runtime, since a file cannot be both
+      committed and absent at HEAD.
 - [ ] **Compare two arbitrary refs** (not just working tree vs. ref).
 - [ ] **Compare two arbitrary files.**
 - [ ] Multiple concurrent panels instead of the current singleton, keyed by source URI.

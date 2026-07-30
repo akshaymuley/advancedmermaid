@@ -9,11 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Mermaid blocks inside Markdown.** `.md` and `.markdown` files can now be compared: the
+  extension finds their ```` ```mermaid ```` fences and, when there is more than one, asks which
+  to compare — listed by the heading above each. Diagrams pair with the ref by position, so the
+  pane header says `HEAD (no diagram 2)` when that version had fewer.
 - Published to [Open VSX](https://open-vsx.org) alongside the VS Code Marketplace, so VSCodium,
   Cursor, Gitpod, and Windsurf can install it.
 
 ### Fixed
 
+- **Comparing a file that doesn't exist at the ref opened nothing at all.** Adding a brand-new
+  diagram and comparing it against HEAD is meant to show empty-versus-new, but the built-in Git
+  extension resolves the path against the ref's tree itself and reports "relative path not
+  found" — wording no git command produces, so it was classified as an unknown failure and the
+  panel was suppressed. The unit tests missed it because they were written against git's own
+  stderr.
 - The `.vsix` no longer ships `.claude/` — the agent definitions, TDD skill, and eval results
   were development tooling that every user downloaded with the extension.
 

@@ -81,18 +81,64 @@ describe('advanced-mermaid in a real VS Code host', () => {
     );
   });
 
-  it('refuses a non-Mermaid file and opens no panel', async () => {
+  /**
+   * A Markdown file with exactly one fence needs no picker, so this exercises the whole fence
+   * path — classify, parse, extract both sides — without having to drive a QuickPick.
+   */
+  it('opens a compare panel for a single mermaid fence in Markdown', async () => {
     await vscode.commands.executeCommand(
       'mermaidCompare.compareWithHead',
-      workspaceFile('README.md')
+      workspaceFile('samples', 'adr.md')
     );
+
+    await waitFor('the panel title to be set by the webview handshake', () =>
+      openTabTitles().includes('Compare: adr.md')
+    );
+  });
+
+  async function assertNoPanelFor(...segments: string[]): Promise<void> {
+    await vscode.commands.executeCommand('mermaidCompare.compareWithHead', workspaceFile(...segments));
 
     // Give a panel the chance to appear before concluding that none did.
     await new Promise((resolve) => setTimeout(resolve, 1500));
     assert.ok(
       !openTabTitles().some((title) => title.startsWith('Compare:')),
-      `no compare panel expected, saw: ${openTabTitles().join(', ')}`
+      `no compare panel expected for ${segments.join('/')}, saw: ${openTabTitles().join(', ')}`
     );
+  }
+
+  /**
+   * Comparing a brand-new diagram against HEAD is a valid comparison — empty versus something.
+   * The fixture has to be created here rather than committed, because the whole point is that it
+   * is absent at HEAD.
+   *
+   * This is the case the unit tests could not reach: `classifyGitFailure` was written against git
+   * CLI stderr, but the built-in git extension resolves the path against the ref's tree itself
+   * and throws its own "relative path not found" wording, which fell through to `unknown` and
+   * suppressed the panel entirely.
+   */
+  it('opens a panel for a file that does not exist at the ref', async () => {
+    const uri = workspaceFile('samples', 'absent-at-head.mmd');
+    await vscode.workspace.fs.writeFile(uri, Buffer.from('flowchart TD\n    New --> Compared\n'));
+
+    try {
+      await vscode.commands.executeCommand('mermaidCompare.compareWithHead', uri);
+      await waitFor('a panel for a diagram that is new since HEAD', () =>
+        openTabTitles().includes('Compare: absent-at-head.mmd')
+      );
+    } finally {
+      await vscode.workspace.fs.delete(uri);
+    }
+  });
+
+  it('refuses a file type it cannot read and opens no panel', async () => {
+    await assertNoPanelFor('package.json');
+  });
+
+  it('opens no panel for a Markdown file with no mermaid fences', async () => {
+    // CONTRIBUTING.md is prose only. Markdown is admitted by the `when` clauses now, so "no
+    // diagram in here" is a distinct outcome from "wrong file type".
+    await assertNoPanelFor('CONTRIBUTING.md');
   });
 
   it('reads a file at HEAD through the built-in git extension', async () => {

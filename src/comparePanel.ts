@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import { debounce } from './debounce';
+import { selectDiagram } from './diagram-selection';
+import { classifySource } from './mermaid-file';
 import { PANEL_BODY_HTML } from './webview/panel-body';
 
 /** How long to wait after the last keystroke before re-rendering the working-tree pane. */
@@ -15,6 +17,11 @@ export interface CompareData {
   uri: vscode.Uri;
   ref: string;
   title: string;
+  /**
+   * Which ```mermaid fence to show, for Markdown sources. Undefined for `.mmd` / `.mermaid`.
+   * Held here so a refresh re-reads the same diagram after an edit shifts the line numbers.
+   */
+  fence?: number;
   left: Side;
   right: Side;
 }
@@ -111,7 +118,7 @@ export class ComparePanel {
   /** Re-read the editor side only — the cheap path taken while the user types. */
   private async refreshWorkingTree(): Promise<void> {
     const document = await vscode.workspace.openTextDocument(this.data.uri);
-    this.update({ ...this.data, right: workingTreeSide(document) }, this.loadLeft);
+    this.update({ ...this.data, right: workingTreeSide(document, this.data.fence) }, this.loadLeft);
   }
 
   /** Re-read both sides, including a fresh `git show` — the Refresh button. */
@@ -122,7 +129,7 @@ export class ComparePanel {
         this.loadLeft(),
         vscode.workspace.openTextDocument(this.data.uri),
       ]);
-      this.update({ ...this.data, left, right: workingTreeSide(document) }, this.loadLeft);
+      this.update({ ...this.data, left, right: workingTreeSide(document, this.data.fence) }, this.loadLeft);
     } catch (err) {
       // Keep the panel up; a failed refresh shouldn't cost the user their current view.
       vscode.window.showErrorMessage(
@@ -167,11 +174,14 @@ ${PANEL_BODY_HTML}
 }
 
 /** The working-tree side of the comparison, labelled by whether the buffer is saved. */
-export function workingTreeSide(document: vscode.TextDocument): Side {
-  return {
-    label: document.isDirty ? 'Editor (unsaved)' : 'Working Tree',
-    content: document.getText(),
-  };
+export function workingTreeSide(document: vscode.TextDocument, fence?: number): Side {
+  const kind = classifySource(document.uri) ?? 'mermaid';
+  const { content, missing } = selectDiagram(document.getText(), kind, fence);
+  const label = document.isDirty ? 'Editor (unsaved)' : 'Working Tree';
+
+  // The fence can vanish mid-edit — while the user is retyping the ``` line, say. Saying so beats
+  // a bare "(empty)" pane that looks like the extension broke.
+  return { label: missing ? `${label} (no diagram ${(fence ?? 0) + 1})` : label, content };
 }
 
 export function getNonce(): string {
