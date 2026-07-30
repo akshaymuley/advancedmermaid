@@ -11,7 +11,7 @@ import { getGitContent } from '../../git';
  * `describe`/`it` are mocha globals — deliberately not imported, since this file is bundled.
  */
 
-const EXTENSION_ID = 'akshaymuley.mermaid-diagram-compare';
+const EXTENSION_ID = 'AkshayDMuley.mermaid-diagram-compare';
 
 function workspaceFile(...segments: string[]): vscode.Uri {
   const folder = vscode.workspace.workspaceFolders?.[0];

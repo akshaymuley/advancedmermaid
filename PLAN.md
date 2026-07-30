@@ -128,7 +128,7 @@ Split in two: everything *up to* the tag, then the publish itself.
 - [x] Bump to `1.0.0` and add the changelog entry. `[Unreleased]` was empty, so 1.0.0 is a
       release marker, not a behaviour change. The lockfile had been missed at 0.4.0 and is now
       back in step with `package.json`.
-- [ ] Create the Marketplace publisher `akshaymuley`, generate the PAT, add the `VSCE_PAT`
+- [ ] Create the Marketplace publisher `AkshayDMuley`, generate the PAT, add the `VSCE_PAT`
       secret (see `RELEASING.md` — the all-organizations scope is the step that usually bites).
 - [ ] `git tag v1.0.0 && git push origin v1.0.0`.
 - [ ] Replace the harness screenshots in `docs/images/` with real captures from inside VS Code —
