@@ -3,6 +3,7 @@ import { debounce } from './debounce';
 import { selectDiagram } from './diagram-selection';
 import { classifySource } from './mermaid-file';
 import { panelKey } from './panel-key';
+import { followsEditor, type SideSource, type SideSources } from './side-source';
 import { PANEL_BODY_HTML } from './webview/panel-body';
 
 /** How long to wait after the last keystroke before re-rendering the working-tree pane. */
@@ -16,7 +17,8 @@ export interface Side {
 export interface CompareData {
   /** The file being compared; tracked so edits to it can refresh the panel. */
   uri: vscode.Uri;
-  ref: string;
+  /** Where each pane's diagram comes from. Either may be the working tree, or neither. */
+  sources: SideSources;
   title: string;
   /**
    * Which ```mermaid fence to show, for Markdown sources. Undefined for `.mmd` / `.mermaid`.
@@ -27,8 +29,8 @@ export interface CompareData {
   right: Side;
 }
 
-/** Re-reads the ref side. Injected so the panel never has to know about git. */
-export type LoadLeft = () => Promise<Side>;
+/** Re-reads one side. Injected so the panel never has to know about git. */
+export type LoadSide = (source: SideSource) => Promise<Side>;
 
 export class ComparePanel {
   /**
@@ -45,11 +47,11 @@ export class ComparePanel {
   private readonly disposables: vscode.Disposable[] = [];
   private readonly scheduleRefresh = debounce(() => void this.refreshWorkingTree(), REFRESH_DELAY_MS);
 
-  static show(extensionUri: vscode.Uri, data: CompareData, loadLeft: LoadLeft): void {
+  static show(extensionUri: vscode.Uri, data: CompareData, loadSide: LoadSide): void {
     const key = panelKey(data);
     const existing = ComparePanel.open.get(key);
     if (existing) {
-      existing.update(data, loadLeft);
+      existing.update(data, loadSide);
       existing.panel.reveal();
       return;
     }
@@ -67,14 +69,14 @@ export class ComparePanel {
         ],
       }
     );
-    ComparePanel.open.set(key, new ComparePanel(panel, extensionUri, data, loadLeft, key));
+    ComparePanel.open.set(key, new ComparePanel(panel, extensionUri, data, loadSide, key));
   }
 
   private constructor(
     private readonly panel: vscode.WebviewPanel,
     extensionUri: vscode.Uri,
     data: CompareData,
-    private loadLeft: LoadLeft,
+    private loadSide: LoadSide,
     private readonly key: string
   ) {
     this.data = data;
@@ -112,13 +114,20 @@ export class ComparePanel {
     });
   }
 
+  /**
+   * Whether an edit to this document should refresh this panel. A comparison between two refs is
+   * a fixed pair of commits: the file being open and edited says nothing about it, so it stays
+   * put rather than re-rendering under the user.
+   */
   private tracks(document: vscode.TextDocument): boolean {
-    return document.uri.toString() === this.data.uri.toString();
+    return (
+      followsEditor(this.data.sources) && document.uri.toString() === this.data.uri.toString()
+    );
   }
 
-  private update(data: CompareData, loadLeft: LoadLeft): void {
+  private update(data: CompareData, loadSide: LoadSide): void {
     this.scheduleRefresh.cancel();
-    this.loadLeft = loadLeft;
+    this.loadSide = loadSide;
     this.data = data;
     this.pending = data;
     this.flush();
@@ -127,18 +136,23 @@ export class ComparePanel {
   /** Re-read the editor side only — the cheap path taken while the user types. */
   private async refreshWorkingTree(): Promise<void> {
     const document = await vscode.workspace.openTextDocument(this.data.uri);
-    this.update({ ...this.data, right: workingTreeSide(document, this.data.fence) }, this.loadLeft);
+    const side = (which: 'left' | 'right'): Side =>
+      this.data.sources[which].kind === 'workingTree'
+        ? workingTreeSide(document, this.data.fence)
+        : this.data[which];
+
+    this.update({ ...this.data, left: side('left'), right: side('right') }, this.loadSide);
   }
 
   /** Re-read both sides, including a fresh `git show` — the Refresh button. */
   private async refreshBothSides(): Promise<void> {
     this.scheduleRefresh.cancel();
     try {
-      const [left, document] = await Promise.all([
-        this.loadLeft(),
-        vscode.workspace.openTextDocument(this.data.uri),
+      const [left, right] = await Promise.all([
+        this.loadSide(this.data.sources.left),
+        this.loadSide(this.data.sources.right),
       ]);
-      this.update({ ...this.data, left, right: workingTreeSide(document, this.data.fence) }, this.loadLeft);
+      this.update({ ...this.data, left, right }, this.loadSide);
     } catch (err) {
       // Keep the panel up; a failed refresh shouldn't cost the user their current view.
       vscode.window.showErrorMessage(

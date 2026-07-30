@@ -1,16 +1,19 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { getGitContent, GitFailureError } from './git';
+import { getGitContent, GitFailureError, listRefs } from './git';
 import { describeGitFailure } from './git-errors';
 import { ComparePanel, Side, workingTreeSide } from './comparePanel';
 import { selectDiagram } from './diagram-selection';
 import { classifySource, SourceKind } from './mermaid-file';
 import { Fence, findMermaidFences } from './mermaid-fences';
+import { panelTitle } from './panel-title';
+import { orderRefs, RefChoice } from './ref-list';
+import type { SideSource, SideSources } from './side-source';
 
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('mermaidCompare.compareWithHead', (arg?: unknown) =>
-      compareWithRef(context, toUri(arg), 'HEAD')
+      compare(context.extensionUri, toUri(arg), againstWorkingTree('HEAD'))
     ),
     vscode.commands.registerCommand('mermaidCompare.compareWithRef', async (arg?: unknown) => {
       const ref = await vscode.window.showInputBox({
@@ -18,8 +21,29 @@ export function activate(context: vscode.ExtensionContext): void {
         value: 'HEAD',
       });
       if (ref) {
-        await compareWithRef(context, toUri(arg), ref);
+        await compare(context.extensionUri, toUri(arg), againstWorkingTree(ref));
       }
+    }),
+    vscode.commands.registerCommand('mermaidCompare.compareBetweenRefs', async (arg?: unknown) => {
+      const uri = toUri(arg);
+      if (!uri) {
+        vscode.window.showErrorMessage('Mermaid Compare: no file selected.');
+        return;
+      }
+
+      const left = await pickRef(uri, 'Compare from (the older side)');
+      if (!left) {
+        return; // Cancelled.
+      }
+      const right = await pickRef(uri, `Compare ${left} to`);
+      if (!right) {
+        return;
+      }
+
+      await compare(context.extensionUri, uri, {
+        left: { kind: 'ref', ref: left },
+        right: { kind: 'ref', ref: right },
+      });
     })
   );
 }
@@ -82,10 +106,57 @@ export async function pickFence(fences: Fence[]): Promise<number | undefined> {
   return picked?.index;
 }
 
-async function compareWithRef(
-  context: vscode.ExtensionContext,
+const REF_KIND_LABEL: Record<RefChoice['kind'], string> = {
+  branch: 'branch',
+  tag: 'tag',
+  remote: 'remote',
+};
+
+const ENTER_MANUALLY = 'Enter a ref manually…';
+
+/**
+ * One of the repository's refs, or whatever the user types. Falls back to a plain input box if
+ * the refs can't be read at all — a comparison shouldn't be blocked by a listing failure.
+ */
+export async function pickRef(uri: vscode.Uri, title: string): Promise<string | undefined> {
+  let choices: RefChoice[] = [];
+  try {
+    choices = orderRefs(await listRefs(uri));
+  } catch {
+    return vscode.window.showInputBox({ prompt: title, value: 'HEAD' });
+  }
+
+  const picked = await vscode.window.showQuickPick(
+    [
+      ...choices.map((choice) => ({ label: choice.name, description: REF_KIND_LABEL[choice.kind] })),
+      { label: ENTER_MANUALLY, description: 'a commit hash, HEAD~2, …' },
+    ],
+    { title, placeHolder: 'Select a branch, tag, or commit' }
+  );
+
+  if (!picked) {
+    return undefined;
+  }
+  return picked.label === ENTER_MANUALLY
+    ? vscode.window.showInputBox({ prompt: title, value: 'HEAD' })
+    : picked.label;
+}
+
+/** Working tree against a ref — the everyday comparison. */
+const againstWorkingTree = (ref: string): SideSources => ({
+  left: { kind: 'ref', ref },
+  right: { kind: 'workingTree' },
+});
+
+/**
+ * Renders one comparison. Takes `extensionUri` rather than the whole extension context: it is all
+ * that's needed, and it lets the integration tests drive a ref-to-ref comparison directly, which
+ * the command itself can't offer them because it collects its two refs from QuickPicks.
+ */
+export async function compare(
+  extensionUri: vscode.Uri,
   uri: vscode.Uri | undefined,
-  ref: string
+  sources: SideSources
 ): Promise<void> {
   if (!uri) {
     vscode.window.showErrorMessage('Mermaid Compare: no file selected.');
@@ -106,7 +177,7 @@ async function compareWithRef(
   const document = await vscode.workspace.openTextDocument(uri);
 
   let fence: number | undefined;
-  let title = name;
+  let fenceInfo: { index: number; total: number } | undefined;
   if (kind === 'markdown') {
     const fences = findMermaidFences(document.getText());
     if (fences.length === 0) {
@@ -118,27 +189,23 @@ async function compareWithRef(
     if (fence === undefined) {
       return; // Cancelled.
     }
-    if (fences.length > 1) {
-      title = `${name} — diagram ${fence + 1} of ${fences.length}`;
-    }
+    fenceInfo = { index: fence, total: fences.length };
   }
 
-  // Comparisons of one file against different refs are now separate panels, so the tabs have to
-  // say which is which. HEAD is the common case and stays unadorned.
-  if (ref !== 'HEAD') {
-    title = `${title} @ ${ref}`;
-  }
-
-  const loadLeft = (): Promise<Side> => loadRefSide(uri, ref, kind, fence);
+  const loadSide = (source: SideSource): Promise<Side> =>
+    source.kind === 'workingTree'
+      ? Promise.resolve(workingTreeSide(document, fence))
+      : loadRefSide(uri, source.ref, kind, fence);
 
   let left: Side;
+  let right: Side;
   try {
-    left = await loadLeft();
+    [left, right] = await Promise.all([loadSide(sources.left), loadSide(sources.right)]);
   } catch (err) {
     vscode.window.showErrorMessage(
       err instanceof GitFailureError
         ? `Mermaid Compare: ${describeGitFailure(err.failure)}`
-        : `Mermaid Compare: could not read "${ref}" version of ${name}. ${
+        : `Mermaid Compare: could not read ${name}. ${
             err instanceof Error ? err.message : String(err)
           }`
     );
@@ -146,8 +213,8 @@ async function compareWithRef(
   }
 
   ComparePanel.show(
-    context.extensionUri,
-    { uri, ref, title, fence, left, right: workingTreeSide(document, fence) },
-    loadLeft
+    extensionUri,
+    { uri, sources, title: panelTitle({ name, sources, fence: fenceInfo }), fence, left, right },
+    loadSide
   );
 }

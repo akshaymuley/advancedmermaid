@@ -1,7 +1,9 @@
 import * as assert from 'assert';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { getGitContent } from '../../git';
+import { getGitContent, listRefs } from '../../git';
+import { orderRefs } from '../../ref-list';
+import { compare } from '../../extension';
 
 /**
  * These run inside a real VS Code. Everything asserted here is something the unit tests and the
@@ -12,6 +14,13 @@ import { getGitContent } from '../../git';
  */
 
 const EXTENSION_ID = 'AkshayDMuley.advanced-mermaid';
+
+/** The extension's install root, which is all `compare` needs from the context. */
+function extensionUri(): vscode.Uri {
+  const extension = vscode.extensions.getExtension(EXTENSION_ID);
+  assert.ok(extension, 'the extension should be present');
+  return extension.extensionUri;
+}
 
 function workspaceFile(...segments: string[]): vscode.Uri {
   const folder = vscode.workspace.workspaceFolders?.[0];
@@ -53,15 +62,34 @@ describe('advanced-mermaid in a real VS Code host', () => {
 
   afterEach(closeAllPanels);
 
-  it('activates and registers both commands', async () => {
+  it('activates and registers every command', async () => {
     const commands = await vscode.commands.getCommands(true);
+    for (const command of [
+      'mermaidCompare.compareWithHead',
+      'mermaidCompare.compareWithRef',
+      'mermaidCompare.compareBetweenRefs',
+    ]) {
+      assert.ok(commands.includes(command), `${command} should be registered`);
+    }
+  });
+
+  /**
+   * The refs come from the built-in git extension. `state.refs` is empty in a freshly opened
+   * window — established by probing a running host — so `listRefs` has to ask for them, and this
+   * pins that down: a silent empty list would leave the ref picker showing nothing but the
+   * manual-entry escape hatch.
+   */
+  it('lists the repository refs through the git extension', async () => {
+    const refs = await listRefs(workspaceFile('samples', 'pipeline.mmd'));
+    const choices = orderRefs(refs);
+
+    assert.ok(refs.length > 0, 'the repository should report at least one ref');
+    // Deliberately not asserting a *local* branch: CI checks out a detached HEAD, so the only
+    // refs there are remotes. Offering those is correct — it's the environment where you most
+    // want to compare two branches without checking either out.
     assert.ok(
-      commands.includes('mermaidCompare.compareWithHead'),
-      'compareWithHead should be registered'
-    );
-    assert.ok(
-      commands.includes('mermaidCompare.compareWithRef'),
-      'compareWithRef should be registered'
+      choices.length > 0 && choices.every((choice) => choice.name.length > 0),
+      `expected named, pickable refs, got: ${JSON.stringify(refs.slice(0, 5))}`
     );
   });
 
@@ -150,6 +178,58 @@ describe('advanced-mermaid in a real VS Code host', () => {
       await vscode.commands.executeCommand('mermaidCompare.compareWithHead', uri);
       await waitFor('a panel for a diagram that is new since HEAD', () =>
         openTabTitles().includes('Compare: absent-at-head.mmd')
+      );
+    } finally {
+      await vscode.workspace.fs.delete(uri);
+    }
+  });
+
+  /**
+   * Two refs, no working tree. Driven through `compare` rather than the command, because the
+   * command's job is to collect the two refs from QuickPicks and that can't be driven from here.
+   */
+  it('compares one file between two refs', async () => {
+    await compare(extensionUri(), workspaceFile('samples', 'pipeline.mmd'), {
+      left: { kind: 'ref', ref: 'HEAD~1' },
+      right: { kind: 'ref', ref: 'HEAD' },
+    });
+
+    await waitFor('a panel naming both refs', () =>
+      openTabTitles().includes('Compare: pipeline.mmd — HEAD~1 ↔ HEAD')
+    );
+  });
+
+  /**
+   * A smoke test, and honest about it: editing the file while a ref-to-ref panel is open must not
+   * disturb or close it. It cannot see *whether* a refresh ran, because a refresh would produce
+   * the same two ref-sourced panes and the same title — `followsEditor` is unit-tested in
+   * `side-source.test.ts` for that. What this does cover is the wiring around it: that the edit
+   * path doesn't throw or dispose the panel when neither side is the working tree.
+   */
+  it('survives edits to the file it is comparing between two refs', async () => {
+    const uri = workspaceFile('samples', 'scratch-refs.mmd');
+    await vscode.workspace.fs.writeFile(uri, Buffer.from('flowchart TD\n    A --> B\n'));
+
+    try {
+      await compare(extensionUri(), uri, {
+        left: { kind: 'ref', ref: 'HEAD' },
+        right: { kind: 'ref', ref: 'HEAD' },
+      });
+      await waitFor('the ref-to-ref panel', () =>
+        openTabTitles().includes('Compare: scratch-refs.mmd — HEAD ↔ HEAD')
+      );
+
+      const document = await vscode.workspace.openTextDocument(uri);
+      const editor = await vscode.window.showTextDocument(document);
+      await editor.edit((builder) =>
+        builder.insert(new vscode.Position(document.lineCount, 0), '    B --> C\n')
+      );
+
+      // Well past the 300 ms refresh debounce.
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      assert.ok(
+        openTabTitles().includes('Compare: scratch-refs.mmd — HEAD ↔ HEAD'),
+        'the panel should still be showing the same two refs'
       );
     } finally {
       await vscode.workspace.fs.delete(uri);
