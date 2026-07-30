@@ -1,4 +1,4 @@
-# Mermaid Diagram Compare
+# Advanced Mermaid
 
 **Compare rendered Mermaid diagrams instead of code.**
 

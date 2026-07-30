@@ -1,9 +1,9 @@
 ---
 name: tdd
-description: Test-driven development workflow for the mermaid-diagram-compare VS Code extension. Use this whenever adding a feature, fixing a bug, refactoring, or changing behavior in src/ — even if the user doesn't mention tests. Also use when the user asks to "add tests", "set up testing", or mentions TDD, red/green, Vitest, or test coverage.
+description: Test-driven development workflow for the advanced-mermaid VS Code extension. Use this whenever adding a feature, fixing a bug, refactoring, or changing behavior in src/ — even if the user doesn't mention tests. Also use when the user asks to "add tests", "set up testing", or mentions TDD, red/green, Vitest, or test coverage.
 ---
 
-# TDD for mermaid-diagram-compare
+# TDD for advanced-mermaid
 
 Write the test first, watch it fail, then write the minimal code to pass. A test you never saw fail proves nothing — it may pass for the wrong reason or test nothing at all. That's the core loop; everything below adapts it to this specific codebase.
 

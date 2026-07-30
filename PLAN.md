@@ -1,4 +1,4 @@
-# Mermaid Diagram Compare — project plan
+# Advanced Mermaid — project plan
 
 Iterative delivery plan for the extension. Each milestone is independently shippable:
 it ends with a working `.vsix` and a version bump. Order is deliberate — earlier

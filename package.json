@@ -1,8 +1,8 @@
 {
-  "name": "mermaid-diagram-compare",
-  "displayName": "Mermaid Diagram Compare",
+  "name": "advanced-mermaid",
+  "displayName": "Advanced Mermaid",
   "description": "Compare rendered Mermaid diagrams instead of code — side-by-side visual diff against any git ref.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "AkshayDMuley",
   "license": "MIT",
   "icon": "media/icon.png",
