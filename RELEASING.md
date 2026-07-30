@@ -8,7 +8,7 @@ The release workflow (`.github/workflows/release.yml`) fires on a `v*` tag. It a
 
 1. **Create the publisher.** Sign in at
    [marketplace.visualstudio.com/manage](https://marketplace.visualstudio.com/manage) with a
-   Microsoft account and create the publisher ID `akshaymuley` — it must match `publisher` in
+   Microsoft account and create the publisher ID `AkshayDMuley` — it must match `publisher` in
    `package.json`.
 2. **Generate a PAT.** In [Azure DevOps](https://dev.azure.com) → *User settings* → *Personal
    access tokens* → *New Token*:
