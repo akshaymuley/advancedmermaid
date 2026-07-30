@@ -81,11 +81,15 @@ describe('advanced-mermaid in a real VS Code host', () => {
    */
   it('lists the repository refs through the git extension', async () => {
     const refs = await listRefs(workspaceFile('samples', 'pipeline.mmd'));
+    const choices = orderRefs(refs);
 
     assert.ok(refs.length > 0, 'the repository should report at least one ref');
+    // Deliberately not asserting a *local* branch: CI checks out a detached HEAD, so the only
+    // refs there are remotes. Offering those is correct — it's the environment where you most
+    // want to compare two branches without checking either out.
     assert.ok(
-      orderRefs(refs).some((ref) => ref.kind === 'branch'),
-      `expected a local branch, got: ${JSON.stringify(refs.slice(0, 5))}`
+      choices.length > 0 && choices.every((choice) => choice.name.length > 0),
+      `expected named, pickable refs, got: ${JSON.stringify(refs.slice(0, 5))}`
     );
   });
 
