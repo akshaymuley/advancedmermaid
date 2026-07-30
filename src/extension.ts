@@ -123,6 +123,12 @@ async function compareWithRef(
     }
   }
 
+  // Comparisons of one file against different refs are now separate panels, so the tabs have to
+  // say which is which. HEAD is the common case and stays unadorned.
+  if (ref !== 'HEAD') {
+    title = `${title} @ ${ref}`;
+  }
+
   const loadLeft = (): Promise<Side> => loadRefSide(uri, ref, kind, fence);
 
   let left: Side;

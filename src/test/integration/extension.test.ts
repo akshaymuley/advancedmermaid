@@ -82,6 +82,31 @@ describe('advanced-mermaid in a real VS Code host', () => {
   });
 
   /**
+   * Two different files, two panels. The panel used to be a singleton, so the second comparison
+   * replaced the first and this file's other tests could never tell the difference — they only
+   * ever opened one at a time.
+   */
+  it('keeps a panel per comparison instead of replacing the last one', async () => {
+    await vscode.commands.executeCommand(
+      'mermaidCompare.compareWithHead',
+      workspaceFile('samples', 'pipeline.mmd')
+    );
+    await waitFor('the first panel', () => openTabTitles().includes('Compare: pipeline.mmd'));
+
+    await vscode.commands.executeCommand(
+      'mermaidCompare.compareWithHead',
+      workspaceFile('samples', 'adr.md')
+    );
+    await waitFor('the second panel', () => openTabTitles().includes('Compare: adr.md'));
+
+    const titles = openTabTitles();
+    assert.ok(
+      titles.includes('Compare: pipeline.mmd') && titles.includes('Compare: adr.md'),
+      `both comparisons should stay open, saw: ${titles.join(', ')}`
+    );
+  });
+
+  /**
    * A Markdown file with exactly one fence needs no picker, so this exercises the whole fence
    * path — classify, parse, extract both sides — without having to drive a QuickPick.
    */

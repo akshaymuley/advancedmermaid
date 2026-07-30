@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { debounce } from './debounce';
 import { selectDiagram } from './diagram-selection';
 import { classifySource } from './mermaid-file';
+import { panelKey } from './panel-key';
 import { PANEL_BODY_HTML } from './webview/panel-body';
 
 /** How long to wait after the last keystroke before re-rendering the working-tree pane. */
@@ -30,7 +31,12 @@ export interface CompareData {
 export type LoadLeft = () => Promise<Side>;
 
 export class ComparePanel {
-  private static current: ComparePanel | undefined;
+  /**
+   * Open panels by `panelKey`. Re-running the same comparison reveals its panel; a different
+   * file, ref, or fence gets its own, so two diagrams from one Markdown file can sit side by
+   * side.
+   */
+  private static readonly open = new Map<string, ComparePanel>();
 
   private ready = false;
   private disposed = false;
@@ -40,9 +46,11 @@ export class ComparePanel {
   private readonly scheduleRefresh = debounce(() => void this.refreshWorkingTree(), REFRESH_DELAY_MS);
 
   static show(extensionUri: vscode.Uri, data: CompareData, loadLeft: LoadLeft): void {
-    if (ComparePanel.current) {
-      ComparePanel.current.update(data, loadLeft);
-      ComparePanel.current.panel.reveal();
+    const key = panelKey(data);
+    const existing = ComparePanel.open.get(key);
+    if (existing) {
+      existing.update(data, loadLeft);
+      existing.panel.reveal();
       return;
     }
 
@@ -59,14 +67,15 @@ export class ComparePanel {
         ],
       }
     );
-    ComparePanel.current = new ComparePanel(panel, extensionUri, data, loadLeft);
+    ComparePanel.open.set(key, new ComparePanel(panel, extensionUri, data, loadLeft, key));
   }
 
   private constructor(
     private readonly panel: vscode.WebviewPanel,
     extensionUri: vscode.Uri,
     data: CompareData,
-    private loadLeft: LoadLeft
+    private loadLeft: LoadLeft,
+    private readonly key: string
   ) {
     this.data = data;
     this.pending = data;
@@ -97,7 +106,7 @@ export class ComparePanel {
 
     panel.onDidDispose(() => {
       this.disposed = true;
-      ComparePanel.current = undefined;
+      ComparePanel.open.delete(this.key);
       this.scheduleRefresh.cancel();
       this.disposables.forEach((d) => d.dispose());
     });
