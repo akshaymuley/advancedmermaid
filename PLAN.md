@@ -17,7 +17,7 @@ together or independently. Milestones 1–4 complete; Milestone 5 has its first 
 |---|---|---|
 | `src/extension.ts` | 147 | Command registration, fence picker, `compareWithRef` orchestration |
 | `src/git.ts` | 45 | Reads a file at a git ref; throws a classified `GitFailureError` |
-| `src/git-errors.ts` | 67 | Pure failure classification + user-facing messages |
+| `src/git-errors.ts` | 73 | Pure failure classification + user-facing messages |
 | `src/comparePanel.ts` | 194 | Webview panel singleton, CSP shell, edit tracking + refresh |
 | `src/debounce.ts` | 45 | Pure debounce with `cancel()` / `flush()` |
 | `src/webview/main.ts` | 304 | Mermaid render, per-pane pan/zoom, last-good-render fallback |
@@ -31,7 +31,7 @@ together or independently. Milestones 1–4 complete; Milestone 5 has its first 
 | `src/mermaid-file.ts` | 28 | `classifySource()` — pure file-type guard (mermaid vs markdown) |
 | `src/mermaid-fences.ts` | 73 | Pure ```mermaid fence parser for Markdown |
 | `src/diagram-selection.ts` | 24 | Picks the diagram a side shows; the one place both sides agree |
-| `src/test/vscode-mock.ts` | 64 | Shared `vscode` module mock (aliased in `vitest.config.ts`) |
+| `src/test/vscode-mock.ts` | 66 | Shared `vscode` module mock (aliased in `vitest.config.ts`) |
 
 Build is esbuild (two bundles: node CJS extension + IIFE browser webview).
 CI runs `typecheck` + `test` + `build` on every PR. `main` is PR-protected.
