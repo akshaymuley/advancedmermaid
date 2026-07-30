@@ -7,7 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- Published to [Open VSX](https://open-vsx.org) alongside the VS Code Marketplace, so VSCodium,
+  Cursor, Gitpod, and Windsurf can install it.
 
 ## [1.0.1] — 2026-07-30
 

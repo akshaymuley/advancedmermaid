@@ -48,3 +48,11 @@ jobs:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         if: env.VSCE_PAT != ''
         run: npx @vscode/vsce publish --pat "$VSCE_PAT"
+
+      - name: Publish to Open VSX
+        # Same conditional-secret pattern: dormant until OVSX_PAT exists. Publishes the .vsix
+        # built above rather than re-packaging, so both registries get a byte-identical artifact.
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        if: env.OVSX_PAT != ''
+        run: npx ovsx publish "advanced-mermaid-${GITHUB_REF_NAME#v}.vsix" -p "$OVSX_PAT"

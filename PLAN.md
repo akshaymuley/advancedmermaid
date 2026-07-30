@@ -4,10 +4,10 @@ Iterative delivery plan for the extension. Each milestone is independently shipp
 it ends with a working `.vsix` and a version bump. Order is deliberate — earlier
 milestones remove friction that later ones would otherwise pay repeatedly.
 
-**Status:** v1.0.0. Renders two refs side-by-side, opens framed, follows edits to the compared
-file, and reports git failures by kind. Panes pan/zoom together or independently.
-Milestones 1–3 complete; Milestone 4 Part 1 done and the extension has been hand-verified from a
-packaged `.vsix`. Publishing is what remains — see Part 2 below.
+**Status:** v1.0.1, published as **Advanced Mermaid** (`AkshayDMuley.advanced-mermaid`). Renders
+two refs side-by-side, opens framed, follows edits to the compared file, and reports git failures
+by kind. Panes pan/zoom together or independently. Milestones 1–4 complete. Next up is
+Milestone 5 — Mermaid fences inside Markdown.
 
 ---
 
@@ -26,6 +26,8 @@ packaged `.vsix`. Publishing is what remains — see Part 2 below.
 | `src/webview/diagram-source.ts` | 7 | `isBlankDiagram()` |
 | `src/test/harness/main.ts` | 61 | Boots the webview outside VS Code for Playwright |
 | `scripts/verify-view.mjs` | 266 | `npm run verify:view` — 34 browser checks + screenshots |
+| `scripts/make-vscode-screenshots.mjs` | 254 | Captures `docs/images/` from a real VS Code over CDP |
+| `src/test/screenshots/driver.ts` | 67 | Sequences the panel states for that capture, in-host |
 | `src/mermaid-file.ts` | 19 | `isMermaidFile()` — pure file-type guard |
 | `src/test/vscode-mock.ts` | 64 | Shared `vscode` module mock (aliased in `vitest.config.ts`) |
 
@@ -37,9 +39,10 @@ CI runs `typecheck` + `test` + `build` on every PR. `main` is PR-protected.
 - **Single global panel.** Comparing a second file replaces the first.
 - **`verify:view` is not in CI.** It needs a ~130 MB Chromium download, which isn't worth it on
   every PR yet. Revisit if the webview grows. (`test:integration` *is* in CI.)
-- **No human has used this in VS Code yet.** The integration suite proves it starts and
-  handshakes; it can't judge how anything looks.
-- **Not publishable yet** — no icon, no CHANGELOG, no marketplace pipeline.
+- **No usage feedback yet.** Published, hand-verified from a `.vsix`, but nobody has lived with
+  it. Milestone 7's diagram-type priorities are guesses until that changes.
+- **The published package shipped `.claude/`** in v1.0.0 and v1.0.1 — agent and skill definitions
+  users had no reason to download. Fixed in `.vscodeignore`; goes out with the next release.
 
 ---
 
@@ -121,19 +124,27 @@ Split in two: everything *up to* the tag, then the publish itself.
       only once `VSCE_PAT` exists — so tagging early is safe. `RELEASING.md` documents the
       whole sequence.
 
-### Part 2 — publish (v1.0.0) — **next task, yours**
+### Part 2 — publish (v1.0.0, done)
 
 - [x] **Manual pass in a real VS Code.** Done from a packaged `.vsix` rather than F5 — that also
       exercises the `.vscodeignore` bundle, which F5 doesn't.
 - [x] Bump to `1.0.0` and add the changelog entry. `[Unreleased]` was empty, so 1.0.0 is a
       release marker, not a behaviour change. The lockfile had been missed at 0.4.0 and is now
       back in step with `package.json`.
-- [ ] Create the Marketplace publisher `AkshayDMuley`, generate the PAT, add the `VSCE_PAT`
-      secret (see `RELEASING.md` — the all-organizations scope is the step that usually bites).
-- [ ] `git tag v1.0.0 && git push origin v1.0.0`.
-- [ ] Replace the harness screenshots in `docs/images/` with real captures from inside VS Code —
-      the current ones are the genuine webview, but without the surrounding editor chrome.
-- [ ] Consider Open VSX publishing alongside it (`ovsx`, separate `OVSX_PAT`).
+- [x] Create the Marketplace publisher, generate the PAT, add the `VSCE_PAT` secret. The
+      all-organizations scope did bite: a single-org token authenticates and then reports the
+      caller as a null user, which reads as a publisher problem rather than a token one.
+- [x] Tag and push. Published as `AkshayDMuley.mermaid-diagram-compare` v1.0.0, then **renamed to
+      `AkshayDMuley.advanced-mermaid`** at v1.0.1 — `name` is half the extension identity, so the
+      Marketplace treats a rename as a new extension. The original listing was unpublished.
+- [x] Replace the harness screenshots with real captures from inside VS Code.
+      `npm run make:screenshots:vscode` launches VS Code, attaches Playwright over the Electron
+      debugging port, and drives the panel from inside the extension host
+      (`src/test/screenshots/driver.ts`). Palette-driven automation was tried first and abandoned:
+      Quick Open swallows keystrokes, and the palette entries are gated on `resourceExtname`, so a
+      command sent before the editor is active silently isn't there to match.
+- [x] Open VSX publishing, as a second conditional step on the same tag, gated on `OVSX_PAT`
+      exactly as the Marketplace step is on `VSCE_PAT`.
 
 ## Milestone 5 — Broader inputs (v1.1.0)
 

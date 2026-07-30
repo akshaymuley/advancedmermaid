@@ -19,6 +19,25 @@ The release workflow (`.github/workflows/release.yml`) fires on a `v*` tag. It a
 3. **Add the secret.** Repo → *Settings* → *Secrets and variables* → *Actions* → *New repository
    secret*, named `VSCE_PAT`.
 
+### Open VSX (optional second registry)
+
+Open VSX serves VSCodium, Cursor, Gitpod, and Windsurf, which cannot reach the Microsoft
+Marketplace. The release workflow publishes there too, and skips it silently while `OVSX_PAT` is
+absent — exactly like `VSCE_PAT`.
+
+1. **Sign in** at [open-vsx.org](https://open-vsx.org) with GitHub.
+2. **Sign the Eclipse Foundation Publisher Agreement.** Profile → *Publisher Agreement*. This is
+   the step that bites: the token authenticates fine without it and publishing still fails.
+3. **Create an access token** from your profile → *Access Tokens*. Copy it; shown once.
+4. **Claim the namespace**, once, from your machine — it must match `publisher` in
+   `package.json`:
+
+   ```bash
+   npx ovsx create-namespace AkshayDMuley -p <token>
+   ```
+
+5. **Add the secret** as `OVSX_PAT`, the same way as `VSCE_PAT` above.
+
 ## Each release
 
 1. Confirm the extension actually works in a real VS Code — `npm run test:integration`, plus an
@@ -47,5 +66,6 @@ The release workflow (`.github/workflows/release.yml`) fires on a `v*` tag. It a
   the release renders correctly.
 - To dry-run the packaging locally: `npx @vscode/vsce package`, then `npx @vscode/vsce ls` to
   see exactly which files land in the `.vsix`.
-- Open VSX (VSCodium, Cursor, Gitpod) is a separate registry: `npx ovsx publish` with an
-  `OVSX_PAT` from [open-vsx.org](https://open-vsx.org). Not wired up yet.
+- Open VSX is a separate registry with its own version history. Publishing there is part of the
+  same tagged release (see the setup section above), but a failure on one registry does not roll
+  back the other — check both steps in the workflow run.

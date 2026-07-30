@@ -47,6 +47,15 @@ async function main() {
         external: ['vscode', 'mocha'],
         outfile: 'dist/test/suite.test.js',
         sourcemap: true,
+      }),
+      await esbuild.context({
+        entryPoints: ['src/test/screenshots/driver.ts'],
+        bundle: true,
+        format: 'cjs',
+        platform: 'node',
+        external: ['vscode'],
+        outfile: 'dist/test/screenshots.js',
+        sourcemap: true,
       })
     );
   }
