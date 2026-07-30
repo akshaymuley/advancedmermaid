@@ -40,6 +40,8 @@ export const window = {
   activeTextEditor: undefined as { document: { uri: Uri } } | undefined,
   showErrorMessage: (_message: string): Promise<undefined> => Promise.resolve(undefined),
   showInputBox: (_options?: unknown): Promise<string | undefined> => Promise.resolve(undefined),
+  showQuickPick: (_items?: unknown, _options?: unknown): Promise<undefined> =>
+    Promise.resolve(undefined),
   createWebviewPanel: (..._args: unknown[]): unknown => {
     throw new Error('vscode-mock: createWebviewPanel is not stubbed; stub it in your test.');
   },
