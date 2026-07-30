@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Published to [Open VSX](https://open-vsx.org) alongside the VS Code Marketplace, so VSCodium,
+  Cursor, Gitpod, and Windsurf can install it.
+
 ### Fixed
 
 - The `.vsix` no longer ships `.claude/` — the agent definitions, TDD skill, and eval results

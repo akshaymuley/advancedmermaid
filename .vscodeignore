@@ -20,4 +20,5 @@ dist/harness.js
 dist/test/**
 dist/icon-32.png
 dist/view-screenshots/**
+dist/harness-screenshots/**
 **/*.map

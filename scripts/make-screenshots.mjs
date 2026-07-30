@@ -1,17 +1,18 @@
 /**
- * Generates the README / Marketplace screenshots into docs/images/.
+ * Renders the webview through harness/index.html in headless Chromium — the same code the
+ * extension ships, but against the harness's stand-in theme and without the surrounding VS Code
+ * chrome.
  *
- * These are the real webview, driven through harness/index.html — the same code the extension
- * ships — but rendered against the harness's stand-in theme and without the surrounding VS Code
- * chrome. Good enough to show what the extension does; a real capture from inside VS Code would
- * be better, and PLAN.md records that as an open item.
+ * This is the fast route for iterating on webview styling. The published images in docs/images/
+ * come from scripts/make-vscode-screenshots.mjs, which captures a real VS Code; these land in
+ * dist/ instead so the two can't clobber each other.
  */
 import { chromium } from 'playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { compare, openHarness, root, settle } from './harness-helpers.mjs';
 
-const outDir = path.join(root, 'docs', 'images');
+const outDir = path.join(root, 'dist', 'harness-screenshots');
 
 const BEFORE = `flowchart TD
   A[Pull request] --> B[Lint]

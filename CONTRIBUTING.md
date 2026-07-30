@@ -22,6 +22,15 @@ Thanks for your interest! All contributions are welcome — bug reports, feature
 - Open `harness/index.html` in a browser after `npm run compile` to poke at the webview by hand,
   without launching VS Code.
 
+## Screenshots
+
+- `npm run make:screenshots:vscode` — regenerates the README / Marketplace images in
+  `docs/images/`. Launches a real VS Code, attaches Playwright over the Electron debugging port,
+  and drives the panel from `src/test/screenshots/driver.ts` inside the extension host. Run it
+  when the panel's appearance changes; the images are what the Marketplace listing shows.
+- `npm run make:screenshots` — the harness equivalent, into `dist/harness-screenshots/`. Faster,
+  no editor, but no VS Code chrome — for iterating on webview styling.
+
 ## Guidelines
 
 - Keep PRs focused — one change per PR.

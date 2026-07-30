@@ -81,6 +81,7 @@
     "test:integration": "node esbuild.js && vscode-test",
     "make:icon": "node scripts/make-icon.mjs",
     "make:screenshots": "node esbuild.js && node scripts/make-screenshots.mjs",
+    "make:screenshots:vscode": "node esbuild.js && node scripts/make-vscode-screenshots.mjs",
     "test:watch": "vitest",
     "vscode:prepublish": "npm run build"
   },
