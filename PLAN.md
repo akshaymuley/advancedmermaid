@@ -4,8 +4,8 @@ Iterative delivery plan for the extension. Each milestone is independently shipp
 it ends with a working `.vsix` and a version bump. Order is deliberate — earlier
 milestones remove friction that later ones would otherwise pay repeatedly.
 
-**Status:** v1.0.1 published as **Advanced Mermaid** (`AkshayDMuley.advanced-mermaid`), with
-Markdown fence support merged and awaiting a v1.1.0 release. Renders two refs side-by-side, opens
+**Status:** v1.0.1 published as **Advanced Mermaid** (`AkshayDMuley.advanced-mermaid`). Six
+entries sit in `[Unreleased]` awaiting a v1.1.0 release. Renders two refs side-by-side, opens
 framed, follows edits to the compared file, and reports git failures by kind. Panes pan/zoom
 together or independently, and each comparison gets its own tab. Either pane can be the working
 tree or any ref. Milestones 1–4 complete; Milestone 5 has everything but the two-arbitrary-files
@@ -192,8 +192,8 @@ Split in two: everything *up to* the tag, then the publish itself.
       so `getRefs()` has to be called — the second time an assumption about this API would have
       shipped broken, and the first time it was caught before writing the code on top of it.
 - [ ] **Compare two arbitrary files.**
-- [x] Multiple concurrent panels instead of the current singleton. Keyed by **file + ref + fence**
-      (`src/panel-key.ts`), not by source URI as originally written — URI alone would have
+- [x] Multiple concurrent panels instead of the current singleton. Keyed by **file + both sources
+      + fence** (`src/panel-key.ts`), not by source URI as originally written — URI alone would have
       re-created the very collision the item exists to remove, since the Markdown work made two
       diagrams in one file the ordinary case. Parts are length-prefixed rather than joined by a
       separator, because a ref is whatever the user typed and plain concatenation lets the same
