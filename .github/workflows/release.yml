@@ -34,7 +34,7 @@ jobs:
           fi
 
       - name: Package
-        run: npx @vscode/vsce package --out "mermaid-diagram-compare-${GITHUB_REF_NAME#v}.vsix"
+        run: npx @vscode/vsce package --out "advanced-mermaid-${GITHUB_REF_NAME#v}.vsix"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

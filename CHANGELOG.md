@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Nothing yet.
 
+## [1.0.1] — 2026-07-30
+
+### Changed
+
+- Renamed to **Advanced Mermaid**. The extension identifier changed from
+  `AkshayDMuley.mermaid-diagram-compare` to `AkshayDMuley.advanced-mermaid`, which the
+  Marketplace treats as a new extension: 1.0.0 users are not upgraded automatically and must
+  install the new listing. Comparison remains what the extension does today; the name leaves
+  room for the broader Mermaid tooling in Milestones 5–7.
+
 ## [1.0.0] — 2026-07-27
 
 First Marketplace release. No behaviour changes since 0.4.0 — the extension was verified by hand
@@ -79,7 +89,8 @@ Release readiness. Not published to the Marketplace.
 - Rejects files that aren't `.mmd` / `.mermaid`, including via the command palette.
 - Mermaid is bundled — the extension works offline.
 
-[Unreleased]: https://github.com/akshaymuley/AdvancedMermaid/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/akshaymuley/AdvancedMermaid/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/akshaymuley/AdvancedMermaid/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/akshaymuley/AdvancedMermaid/compare/v0.4.0...v1.0.0
 [0.4.0]: https://github.com/akshaymuley/AdvancedMermaid/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/akshaymuley/AdvancedMermaid/compare/v0.2.0...v0.3.0

@@ -11,7 +11,7 @@ import { getGitContent } from '../../git';
  * `describe`/`it` are mocha globals — deliberately not imported, since this file is bundled.
  */
 
-const EXTENSION_ID = 'AkshayDMuley.mermaid-diagram-compare';
+const EXTENSION_ID = 'AkshayDMuley.advanced-mermaid';
 
 function workspaceFile(...segments: string[]): vscode.Uri {
   const folder = vscode.workspace.workspaceFolders?.[0];
@@ -44,7 +44,7 @@ async function closeAllPanels(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 200));
 }
 
-describe('mermaid-diagram-compare in a real VS Code host', () => {
+describe('advanced-mermaid in a real VS Code host', () => {
   before(async () => {
     const extension = vscode.extensions.getExtension(EXTENSION_ID);
     assert.ok(extension, `extension ${EXTENSION_ID} should be present`);
