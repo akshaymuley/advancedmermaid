@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Compare a diagram between two refs.** A new **Compare Diagram Between Refs...** command
+  compares any two branches, tags, or commits directly — no working tree involved, so you can
+  review a diagram change on someone else's branch without checking it out. Both refs are chosen
+  from a list of the repository's actual branches and tags, with manual entry for anything else.
 - **Several comparisons open at once.** A panel is now identified by file, ref, and diagram
   rather than being a single global window, so two diagrams from one Markdown file — or one file
   against two different refs — can sit side by side. Re-running an identical comparison reveals

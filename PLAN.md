@@ -7,9 +7,9 @@ milestones remove friction that later ones would otherwise pay repeatedly.
 **Status:** v1.0.1 published as **Advanced Mermaid** (`AkshayDMuley.advanced-mermaid`), with
 Markdown fence support merged and awaiting a v1.1.0 release. Renders two refs side-by-side, opens
 framed, follows edits to the compared file, and reports git failures by kind. Panes pan/zoom
-together or independently, and each comparison gets its own tab. Milestones 1–4 complete;
-Milestone 5 has Markdown fences and multiple panels done, leaving the two-refs and two-files
-items.
+together or independently, and each comparison gets its own tab. Either pane can be the working
+tree or any ref. Milestones 1–4 complete; Milestone 5 has everything but the two-arbitrary-files
+item.
 
 ---
 
@@ -17,10 +17,10 @@ items.
 
 | File | Lines | Role |
 |---|---|---|
-| `src/extension.ts` | 153 | Command registration, fence picker, `compareWithRef` orchestration |
-| `src/git.ts` | 45 | Reads a file at a git ref; throws a classified `GitFailureError` |
+| `src/extension.ts` | 220 | Three commands, fence and ref pickers, `compare` orchestration |
+| `src/git.ts` | 61 | Reads a file at a ref and lists refs; throws a classified `GitFailureError` |
 | `src/git-errors.ts` | 73 | Pure failure classification + user-facing messages |
-| `src/comparePanel.ts` | 203 | Webview panel registry, CSP shell, edit tracking + refresh |
+| `src/comparePanel.ts` | 217 | Webview panel registry, CSP shell, edit tracking + refresh |
 | `src/debounce.ts` | 45 | Pure debounce with `cancel()` / `flush()` |
 | `src/webview/main.ts` | 304 | Mermaid render, per-pane pan/zoom, last-good-render fallback |
 | `src/webview/view-math.ts` | 78 | Pure fit / zoom-anchor / clamp maths |
@@ -33,7 +33,10 @@ items.
 | `src/mermaid-file.ts` | 28 | `classifySource()` — pure file-type guard (mermaid vs markdown) |
 | `src/mermaid-fences.ts` | 73 | Pure ```mermaid fence parser for Markdown |
 | `src/diagram-selection.ts` | 24 | Picks the diagram a side shows; the one place both sides agree |
-| `src/panel-key.ts` | 21 | Pure panel identity: file + ref + fence |
+| `src/panel-key.ts` | 32 | Pure panel identity: file + both sources + fence |
+| `src/side-source.ts` | 20 | Where a pane's diagram comes from; `followsEditor` |
+| `src/panel-title.ts` | 37 | Pure tab-title rules |
+| `src/ref-list.ts` | 46 | Pure ordering/dedup of branch and tag choices |
 | `src/test/vscode-mock.ts` | 66 | Shared `vscode` module mock (aliased in `vitest.config.ts`) |
 
 Build is esbuild (two bundles: node CJS extension + IIFE browser webview).
@@ -179,7 +182,15 @@ Split in two: everything *up to* the tag, then the publish itself.
       only because Markdown made new-file comparisons common enough to trip over; now covered by
       an integration test that creates its fixture at runtime, since a file cannot be both
       committed and absent at HEAD.
-- [ ] **Compare two arbitrary refs** (not just working tree vs. ref).
+- [x] **Compare two arbitrary refs** (not just working tree vs. ref). Both panes now describe
+      where they come from (`src/side-source.ts`), so "working tree vs. ref" stopped being baked
+      into the panel: `LoadSide` takes a source and the refresh paths ask each side what it is.
+      A ref-vs-ref comparison is a fixed pair of commits, so it deliberately does **not** follow
+      edits to the file.
+      Refs are picked from the repository's real branches and tags. A probe of the running
+      extension host corrected the plan here: `repository.state.refs` is empty in a fresh window,
+      so `getRefs()` has to be called — the second time an assumption about this API would have
+      shipped broken, and the first time it was caught before writing the code on top of it.
 - [ ] **Compare two arbitrary files.**
 - [x] Multiple concurrent panels instead of the current singleton. Keyed by **file + ref + fence**
       (`src/panel-key.ts`), not by source URI as originally written — URI alone would have

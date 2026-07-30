@@ -43,6 +43,11 @@
         "command": "mermaidCompare.compareWithRef",
         "title": "Compare Diagram with Ref...",
         "category": "Mermaid Compare"
+      },
+      {
+        "command": "mermaidCompare.compareBetweenRefs",
+        "title": "Compare Diagram Between Refs...",
+        "category": "Mermaid Compare"
       }
     ],
     "menus": {
@@ -66,6 +71,10 @@
         },
         {
           "command": "mermaidCompare.compareWithRef",
+          "when": "resourceExtname == .mmd || resourceExtname == .mermaid || resourceExtname == .md || resourceExtname == .markdown"
+        },
+        {
+          "command": "mermaidCompare.compareBetweenRefs",
           "when": "resourceExtname == .mmd || resourceExtname == .mermaid || resourceExtname == .md || resourceExtname == .markdown"
         }
       ]
