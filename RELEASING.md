@@ -25,6 +25,10 @@ Open VSX serves VSCodium, Cursor, Gitpod, and Windsurf, which cannot reach the M
 Marketplace. The release workflow publishes there too, and skips it silently while `OVSX_PAT` is
 absent — exactly like `VSCE_PAT`.
 
+**Not set up yet.** The steps below have not been done, so nothing is published to Open VSX
+today. Note that it does not backfill: whenever you do complete them, only tags pushed afterwards
+appear there.
+
 1. **Sign in** at [open-vsx.org](https://open-vsx.org) with GitHub.
 2. **Sign the Eclipse Foundation Publisher Agreement.** Profile → *Publisher Agreement*. This is
    the step that bites: the token authenticates fine without it and publishing still fails.
