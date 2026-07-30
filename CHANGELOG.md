@@ -7,7 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- The `.vsix` no longer ships `.claude/` — the agent definitions, TDD skill, and eval results
+  were development tooling that every user downloaded with the extension.
 
 ## [1.0.1] — 2026-07-30
 
