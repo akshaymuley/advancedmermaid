@@ -14,7 +14,8 @@ side by side as SVG or PNG. **Milestones 1–6 complete.**
 Everything since v1.0.1 sits in `[Unreleased]` — two milestones' worth, since nothing has been
 tagged in between. Whether that ships as one version or as v1.1.0 followed by v1.2.0 is a decision
 for release time; either way it is **held** on Open VSX registration (see Known gaps). Milestone 7
-is next.
+is under way: its graph core — a flowchart parser and a graph diff — is in, both pure and
+unreleased, with nothing wired to them yet. The merged render is the next slice.
 
 ---
 
@@ -32,6 +33,8 @@ is next.
 | `src/webview/panel-body.ts` | 61 | The panel DOM, shared by the real panel and the harness |
 | `src/webview/view-mode.ts` | 63 | Pure comparison-mode state and its sync interaction |
 | `src/webview/export-image.ts` | 103 | Pure SVG composition of the two diagrams for export |
+| `src/webview/flowchart-parse.ts` | 392 | Pure `flowchart`/`graph` source → nodes, edges, subgraphs; `null` for anything else |
+| `src/webview/flowchart-diff.ts` | 139 | Pure graph diff — added / removed / changed, in a stable order |
 | `src/webview/diagram-source.ts` | 7 | `isBlankDiagram()` |
 | `src/test/harness/main.ts` | 61 | Boots the webview outside VS Code for Playwright |
 | `scripts/verify-view.mjs` | 531 | `npm run verify:view` — 94 browser checks + screenshots |
@@ -316,8 +319,31 @@ Split in two: everything *up to* the tag, then the publish itself.
 *The headline feature, and by far the most work. Deliberately last: it depends on stable
 rendering, a test harness, and real usage feedback to know which diagram types matter.*
 
-- [ ] Parse both versions into a node/edge graph (start with `flowchart` only).
-- [ ] Diff the graphs — added / removed / changed nodes and edges.
+- [x] Parse both versions into a node/edge graph (start with `flowchart` only).
+      `src/webview/flowchart-parse.ts` — hand-written, and not for want of trying mermaid's own:
+      **mermaid 11 exposes no graph.** `mermaid.parse()` returns `{ diagramType, config }` and
+      nothing else, and `Diagram.fromText` ships as a `.d.ts` over bundled chunks with no export
+      path — `internals.d.ts` is marked "should not be used by external packages, definitions will
+      change without notice". Probed before writing a line, in the same spirit as the `state.refs`
+      and git-wording lessons above. Parsing ourselves also lands the work in the best-tested
+      tier: pure, no DOM, no mermaid, so the whole thing is `npm test`.
+      Node shapes and connectors are stored **verbatim** (`'[]'`, `'-.->'`) rather than as an
+      enum, because the merged render regenerates mermaid source and an enum would need a lossy
+      mapping back. Styling and interaction lines are collected into `unsupported` rather than
+      rejected — a diagram with a `classDef` in it is still perfectly diffable, and refusing it
+      would make the feature useless on real files.
+      Two traps the tests caught: a lazy `-- … --` scan for inline edge labels also matches
+      straight across `A --> B --> C`, reading `> B` as a label and two arrows as one edge; and
+      the older `graph TD; A-->B; C-->D` style quietly produced a node called `B; C` until `;`
+      was treated as a statement end.
+- [x] Diff the graphs — added / removed / changed nodes and edges.
+      `src/webview/flowchart-diff.ts`. Identity is the node **id**, and for an edge the pair it
+      joins — keying on the label instead would report every reworded node as a removal plus an
+      addition, and the merged diagram would draw the box twice. Parallel edges between the same
+      pair match **by position**, the same pairing rule Milestone 5 chose for markdown fences.
+      Output follows the newer version's order with each removal spliced back in after whatever
+      preceded it, because that order becomes the order of the regenerated source: an unstable one
+      would relayout the diagram on every refresh.
 - [ ] Render **one merged diagram** with change highlighting and a stable layout, so the
       change is visually obvious rather than requiring eye-comparison.
 - [ ] Fall back cleanly to side-by-side for unsupported diagram types.
