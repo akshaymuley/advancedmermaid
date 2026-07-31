@@ -42,6 +42,7 @@ export const PANEL_BODY_HTML = `<div id="toolbar">
     </span>
     <button id="sync" aria-pressed="true" title="Pan and zoom both panes together">Sync</button>
     <button id="refresh" title="Re-read both sides, including the git ref">Refresh</button>
+    <button id="export" title="Save both diagrams side by side as an image">Export…</button>
   </div>
 </div>
 <div id="pane-headers">

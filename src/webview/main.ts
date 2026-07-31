@@ -1,5 +1,6 @@
 import mermaid from 'mermaid';
 import { isBlankDiagram } from './diagram-source';
+import { composeComparison, type ExportSide } from './export-image';
 import { Box, computeFitView, dividerPercent, panBy, View, zoomAt } from './view-math';
 import { initialViewMode, isStacked, setMode, syncAvailable, toggleSync, ViewMode } from './view-mode';
 
@@ -16,6 +17,12 @@ interface CompareMessage {
   left: Side;
   right: Side;
 }
+/** The host answers an export request with the format the save dialog settled on. */
+interface ExportAsMessage {
+  type: 'exportAs';
+  format: 'svg' | 'png';
+}
+type HostMessage = CompareMessage | ExportAsMessage;
 
 declare function acquireVsCodeApi(): { postMessage(message: unknown): void };
 const vscodeApi = acquireVsCodeApi();
@@ -207,8 +214,12 @@ async function renderPane(side: Pane, data: Side): Promise<void> {
   }
 }
 
-window.addEventListener('message', async (event: MessageEvent<CompareMessage>) => {
+window.addEventListener('message', async (event: MessageEvent<HostMessage>) => {
   const message = event.data;
+  if (message.type === 'exportAs') {
+    sendExport(message.format);
+    return;
+  }
   if (message.type !== 'compare') {
     return;
   }
@@ -334,6 +345,89 @@ el('opacity').addEventListener('input', (event) => {
   const percent = Number((event.target as HTMLInputElement).value);
   el('panes').style.setProperty('--overlay-opacity', String(percent / 100));
 });
+
+// --- Export ---
+
+/** PNG is rasterised at 2x so it stays legible where a browser scales it down. */
+const PNG_SCALE = 2;
+
+/**
+ * A theme colour, falling back to one that matches the theme's *polarity* rather than to a fixed
+ * light default. Getting this wrong is not cosmetic: a dark render on a white background is light
+ * text on white — the very thing painting a background is meant to prevent — and that is exactly
+ * what an undefined variable produced the first time this was rendered.
+ */
+const cssVar = (name: string, dark: string, light: string): string =>
+  getComputedStyle(document.body).getPropertyValue(name).trim() || (isDark ? dark : light);
+
+/** One side as the composer wants it: its markup and the size that markup is drawn at. */
+function exportSide(pane: Pane): ExportSide {
+  const svg = el(`${pane}-viewport`).querySelector('svg');
+  const box = contentBoxes[pane];
+
+  return {
+    label: el(`${pane}-label`).textContent ?? pane,
+    svg: svg && box ? new XMLSerializer().serializeToString(svg) : undefined,
+    width: box?.width ?? 0,
+    height: box?.height ?? 0,
+  };
+}
+
+const comparisonImage = () =>
+  composeComparison({
+    left: exportSide('left'),
+    right: exportSide('right'),
+    // Baked in, not left transparent: a dark-theme render is light text, which disappears the
+    // moment a viewer composites it onto white.
+    background: cssVar('--vscode-editor-background', '#1e1e1e', '#ffffff'),
+    foreground: cssVar('--vscode-foreground', '#cccccc', '#333333'),
+  });
+
+/**
+ * Rasterise the composed SVG. Chromium draws `<foreignObject>` — which mermaid's flowchart labels
+ * use — and the markup carries its own styles, so the canvas stays untainted and `toDataURL`
+ * works. Both were verified against a real render before this was built on.
+ */
+function rasterise(svg: string, width: number, height: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(width * PNG_SCALE));
+      canvas.height = Math.max(1, Math.round(height * PNG_SCALE));
+      const context = canvas.getContext('2d');
+      if (!context) {
+        reject(new Error('no 2d context'));
+        return;
+      }
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    image.onerror = () => reject(new Error('the composed SVG could not be rendered'));
+    image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  });
+}
+
+async function sendExport(format: 'svg' | 'png'): Promise<void> {
+  const image = comparisonImage();
+
+  if (format === 'svg') {
+    vscodeApi.postMessage({ type: 'exportData', format, data: image.markup });
+    return;
+  }
+
+  try {
+    const dataUrl = await rasterise(image.markup, image.width, image.height);
+    vscodeApi.postMessage({ type: 'exportData', format, data: dataUrl.split(',')[1] });
+  } catch (err) {
+    vscodeApi.postMessage({
+      type: 'exportFailed',
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+el('export').addEventListener('click', () => vscodeApi.postMessage({ type: 'export' }));
 
 // --- Blink ---
 

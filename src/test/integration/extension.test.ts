@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import { getGitContent, listRefs } from '../../git';
 import { orderRefs } from '../../ref-list';
 import { compare, fromRef, fromTree } from '../../extension';
+import { writeExport } from '../../comparePanel';
 
 /**
  * These run inside a real VS Code. Everything asserted here is something the unit tests and the
@@ -304,6 +305,43 @@ describe('advanced-mermaid in a real VS Code host', () => {
     } finally {
       await vscode.workspace.fs.delete(left);
       await vscode.workspace.fs.delete(right);
+    }
+  });
+
+  /**
+   * The export flow ends at `showSaveDialog`, which is a native OS dialog outside the renderer —
+   * no automation here can click it. So the half that *can* be checked is checked properly: the
+   * bytes that reach disk in a real host, for both formats. Everything before it (composing the
+   * SVG, rasterising it) is covered by the browser harness.
+   */
+  it('writes an exported comparison to disk in both formats', async () => {
+    const svgTarget = workspaceFile('samples', 'export-test.svg');
+    const pngTarget = workspaceFile('samples', 'export-test.png');
+    // A 1x1 PNG, base64, exactly as the webview would post it.
+    const pngBase64 =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+    try {
+      await writeExport(svgTarget, 'svg', '<svg xmlns="http://www.w3.org/2000/svg"/>');
+      await writeExport(pngTarget, 'png', pngBase64);
+
+      const svgBytes = Buffer.from(await vscode.workspace.fs.readFile(svgTarget));
+      assert.ok(
+        svgBytes.toString('utf8').startsWith('<svg'),
+        `expected SVG text, got: ${svgBytes.subarray(0, 20).toString('utf8')}`
+      );
+
+      const pngBytes = Buffer.from(await vscode.workspace.fs.readFile(pngTarget));
+      assert.strictEqual(
+        pngBytes.subarray(1, 4).toString('utf8'),
+        'PNG',
+        'PNG must be decoded from base64, not written as the base64 text itself'
+      );
+      assert.ok(pngBytes.length < pngBase64.length, 'decoded bytes should be shorter than base64');
+    } finally {
+      for (const target of [svgTarget, pngTarget]) {
+        await vscode.workspace.fs.delete(target).then(undefined, () => undefined);
+      }
     }
   });
 

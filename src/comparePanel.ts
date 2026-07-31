@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { debounce } from './debounce';
 import { selectDiagram } from './diagram-selection';
+import { exportFileName, formatFor, type ExportFormat } from './export-file';
 import { classifySource } from './mermaid-file';
 import { panelKey } from './panel-key';
 import { tracksDocument, type SideTarget } from './side-source';
@@ -49,6 +51,8 @@ export class ComparePanel {
 
   private ready = false;
   private disposed = false;
+  /** Where an in-flight export is headed, held between the save dialog and the webview's reply. */
+  private pendingExport: vscode.Uri | undefined;
   private pending: CompareData | undefined;
   private data: CompareData;
   private readonly disposables: vscode.Disposable[] = [];
@@ -91,14 +95,25 @@ export class ComparePanel {
     panel.webview.html = this.getHtml(panel.webview, extensionUri);
 
     this.disposables.push(
-      panel.webview.onDidReceiveMessage((message: { type?: string }) => {
-        if (message.type === 'ready') {
-          this.ready = true;
-          this.flush();
-        } else if (message.type === 'refresh') {
-          void this.refreshBothSides();
+      panel.webview.onDidReceiveMessage(
+        (message: { type?: string; format?: ExportFormat; data?: string; message?: string }) => {
+          if (message.type === 'ready') {
+            this.ready = true;
+            this.flush();
+          } else if (message.type === 'refresh') {
+            void this.refreshBothSides();
+          } else if (message.type === 'export') {
+            void this.askWhereToExport();
+          } else if (message.type === 'exportData' && message.format && message.data) {
+            void this.finishExport(message.format, message.data);
+          } else if (message.type === 'exportFailed') {
+            this.pendingExport = undefined;
+            vscode.window.showErrorMessage(
+              `Mermaid Compare: could not build the image. ${message.message ?? ''}`
+            );
+          }
         }
-      }),
+      ),
       // Follow edits to the compared file. Saving flushes immediately; typing is debounced so
       // half-finished diagrams don't re-render on every keystroke.
       vscode.workspace.onDidChangeTextDocument((event) => {
@@ -150,6 +165,53 @@ export class ComparePanel {
 
     const [left, right] = await Promise.all([read('left'), read('right')]);
     this.update({ ...this.data, left, right }, this.loadSide);
+  }
+
+  /**
+   * Ask where the image should go, then ask the webview to build it.
+   *
+   * The order is forced: only the webview can rasterise a PNG, and only the host can offer a save
+   * dialog — so the format has to be settled first and carried across. Whichever extension the
+   * user picks *is* the format, which is why the dialog asks nothing else.
+   */
+  private async askWhereToExport(): Promise<void> {
+    const target = await vscode.window.showSaveDialog({
+      title: 'Export comparison',
+      defaultUri: vscode.Uri.joinPath(
+        vscode.Uri.file(path.dirname(this.data.targets.right.uri.fsPath)),
+        exportFileName(this.data.title, 'svg')
+      ),
+      filters: { 'SVG image': ['svg'], 'PNG image': ['png'] },
+    });
+
+    if (!target) {
+      return; // Cancelled.
+    }
+
+    this.pendingExport = target;
+    void this.panel.webview.postMessage({ type: 'exportAs', format: formatFor(target.fsPath) });
+  }
+
+  /** The webview has built the image; write it where the dialog said. */
+  private async finishExport(format: ExportFormat, data: string): Promise<void> {
+    const target = this.pendingExport;
+    this.pendingExport = undefined;
+    if (!target) {
+      return; // The panel was closed, or the dialog cancelled, between request and reply.
+    }
+
+    try {
+      await writeExport(target, format, data);
+      vscode.window.showInformationMessage(
+        `Mermaid Compare: exported to ${path.basename(target.fsPath)}.`
+      );
+    } catch (err) {
+      vscode.window.showErrorMessage(
+        `Mermaid Compare: could not write ${path.basename(target.fsPath)}. ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
   }
 
   /** Re-read both sides, including a fresh `git show` — the Refresh button. */
@@ -213,6 +275,24 @@ export function workingTreeSide(document: vscode.TextDocument, fence?: number): 
   // The fence can vanish mid-edit — while the user is retyping the ``` line, say. Saying so beats
   // a bare "(empty)" pane that looks like the extension broke.
   return { label: missing ? `${label} (no diagram ${(fence ?? 0) + 1})` : label, content };
+}
+
+/**
+ * Write an exported comparison.
+ *
+ * Exported on its own so the integration tests can prove the bytes that reach disk in a real host:
+ * the flow they can't drive is `showSaveDialog`, which is a native OS dialog outside the renderer.
+ * PNG arrives base64-encoded, since a webview message is JSON and cannot carry bytes.
+ */
+export async function writeExport(
+  target: vscode.Uri,
+  format: ExportFormat,
+  data: string
+): Promise<void> {
+  const bytes =
+    format === 'png' ? Buffer.from(data, 'base64') : Buffer.from(data, 'utf8');
+
+  await vscode.workspace.fs.writeFile(target, bytes);
 }
 
 export function getNonce(): string {

@@ -13,6 +13,7 @@ const REQUIRED_IDS = [
   'zoom-in',
   'sync',
   'refresh',
+  'export',
   'mode',
   'swipe-handle',
   'opacity',
