@@ -214,6 +214,67 @@ async function main() {
     await page.screenshot({ path: path.join(shots, '5-fit-mismatched-sizes.png') });
   }
 
+  console.log('\noverlay mode');
+  {
+    // Left is the small VALID diagram, right the WIDE one, so "fits the larger" is meaningful.
+    // Start from sync off: leaving overlay has to give that back, not silently keep them locked.
+    await page.click('#sync');
+    check('sync is off before overlaying', (await page.getAttribute('#sync', 'aria-pressed')) === 'false');
+
+    await page.click('#overlay');
+    await settle(page);
+
+    check('Overlay reads as pressed', (await page.getAttribute('#overlay', 'aria-pressed')) === 'true');
+    check('the opacity slider appears with it', await page.isVisible('#opacity'));
+
+    const stacked = await page.evaluate(() => {
+      const box = (side) =>
+        document.querySelector(`.pane[data-side="${side}"] .canvas`).getBoundingClientRect();
+      const [a, b] = [box('left'), box('right')];
+      return { same: Math.abs(a.left - b.left) < 1 && Math.abs(a.top - b.top) < 1 && Math.abs(a.width - b.width) < 1 };
+    });
+    check('both panes occupy the same space', stacked.same);
+
+    check('sync is forced on', (await page.getAttribute('#sync', 'aria-pressed')) === 'true');
+    check('and the sync control is disabled while it is', await page.isDisabled('#sync'));
+    check('so the two layers share one view',
+      JSON.stringify(await readView(page, 'left')) === JSON.stringify(await readView(page, 'right')));
+
+    const opacityOf = (side) =>
+      page.evaluate((s) => getComputedStyle(document.getElementById(`${s}-viewport`)).opacity, side);
+    check('the lower layer stays opaque', near(Number(await opacityOf('left')), 1, 0.01),
+      await opacityOf('left'));
+    check('the upper layer starts half faded', near(Number(await opacityOf('right')), 0.5, 0.01),
+      await opacityOf('right'));
+
+    await page.locator('#opacity').fill('20');
+    await settle(page);
+    check('the slider fades the upper layer', near(Number(await opacityOf('right')), 0.2, 0.01),
+      await opacityOf('right'));
+
+    await page.click('#fit');
+    await settle(page);
+    for (const side of ['left', 'right']) {
+      const fit = await fitsInPane(page, side);
+      check(`the ${side} layer fits the stacked canvas`, fit.ok, fit.reason);
+    }
+    await page.screenshot({ path: path.join(shots, '6-overlay.png') });
+
+    await page.click('#overlay');
+    await settle(page);
+    check('leaving overlay restores two panes', !(await page.evaluate(() => {
+      const box = (side) =>
+        document.querySelector(`.pane[data-side="${side}"] .canvas`).getBoundingClientRect();
+      return Math.abs(box('left').left - box('right').left) < 1;
+    })));
+    check('and hides the opacity slider', !(await page.isVisible('#opacity')));
+    check('and gives back the sync setting it borrowed',
+      (await page.getAttribute('#sync', 'aria-pressed')) === 'false');
+    check('and re-enables the control', !(await page.isDisabled('#sync')));
+
+    await page.click('#sync'); // Leave the panes synced for anything that follows.
+  }
+
   console.log('\nhost messages');
   {
     const posted = await page.evaluate(() => window.__posted);

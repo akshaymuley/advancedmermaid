@@ -3,6 +3,10 @@
  * and the Playwright harness. Keeping one copy is the point: the harness only proves something
  * about the extension if it renders the extension's actual markup.
  *
+ * The two pane labels live in one `#pane-headers` row rather than inside their panes. Side by
+ * side that reads identically — two half-width cells above two half-width canvases — but overlay
+ * stacks the canvases, and two headers stacked on top of each other would be unreadable.
+ *
  * No `<script>` here — the panel injects one with a nonce, and the harness loads its own bundle.
  */
 export const PANEL_BODY_HTML = `<div id="toolbar">
@@ -12,17 +16,25 @@ export const PANEL_BODY_HTML = `<div id="toolbar">
     <button id="zoom-out" title="Zoom out (-)">&minus;</button>
     <span id="zoom-level">100%</span>
     <button id="zoom-in" title="Zoom in (+)">+</button>
+    <button id="overlay" aria-pressed="false" title="Stack both diagrams and fade between them">Overlay</button>
+    <label id="opacity-control" hidden>
+      <span class="visually-hidden">Opacity of the upper diagram</span>
+      <input id="opacity" type="range" min="0" max="100" value="50"
+             title="Opacity of the upper diagram">
+    </label>
     <button id="sync" aria-pressed="true" title="Pan and zoom both panes together">Sync</button>
     <button id="refresh" title="Re-read both sides, including the git ref">Refresh</button>
   </div>
 </div>
+<div id="pane-headers">
+  <header data-side="left"><span id="left-label"></span><span class="badge" id="left-badge" hidden>!</span></header>
+  <header data-side="right"><span id="right-label"></span><span class="badge" id="right-badge" hidden>!</span></header>
+</div>
 <div id="panes">
   <section class="pane" data-side="left">
-    <header><span id="left-label"></span><span class="badge" id="left-badge" hidden>!</span></header>
     <div class="canvas"><div class="viewport" id="left-viewport"></div></div>
   </section>
   <section class="pane" data-side="right">
-    <header><span id="right-label"></span><span class="badge" id="right-badge" hidden>!</span></header>
     <div class="canvas"><div class="viewport" id="right-viewport"></div></div>
   </section>
 </div>`;

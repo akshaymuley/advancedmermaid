@@ -13,6 +13,10 @@ const REQUIRED_IDS = [
   'zoom-in',
   'sync',
   'refresh',
+  'overlay',
+  'opacity',
+  'opacity-control',
+  'pane-headers',
   'left-label',
   'right-label',
   'left-badge',
@@ -44,6 +48,18 @@ describe('PANEL_BODY_HTML', () => {
 
   it('starts with sync switched on', () => {
     expect(document.getElementById('sync')!.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('starts side by side, with the opacity slider out of the way', () => {
+    expect(document.getElementById('overlay')!.getAttribute('aria-pressed')).toBe('false');
+    expect(document.getElementById('opacity-control')!.hasAttribute('hidden')).toBe(true);
+  });
+
+  it('keeps both pane labels in one header row, so overlay has somewhere to put them', () => {
+    const headers = document.querySelectorAll('#pane-headers header');
+
+    expect(headers).toHaveLength(2);
+    expect(document.querySelector('.pane header')).toBeNull();
   });
 
   it('carries no script tag — the panel supplies one with a CSP nonce', () => {
