@@ -536,6 +536,46 @@ async function main() {
     check('dragging pans the merged diagram', after.x !== before.x || after.y !== before.y,
       `${JSON.stringify(before)} -> ${JSON.stringify(after)}`);
 
+    /**
+     * Which composition Export uses is wiring, and wiring is what this file is for: the two
+     * compositions are pure and unit-tested, but nothing there can say the right one was picked
+     * for what is on screen.
+     */
+    const exportNow = async (format) => {
+      await page.evaluate((f) => {
+        window.dispatchEvent(new MessageEvent('message', { data: { type: 'exportAs', format: f } }));
+      }, format);
+      await page.waitForTimeout(600);
+      return page.evaluate(() =>
+        [...window.__posted].reverse().find((m) => m.type === 'exportData'));
+    };
+    const describeSvg = (markup) => page.evaluate((m) => {
+      const doc = new DOMParser().parseFromString(m, 'image/svg+xml');
+      return {
+        error: !!doc.querySelector('parsererror'),
+        nested: [...doc.documentElement.children].filter((c) => c.tagName === 'svg').length,
+        text: doc.documentElement.textContent,
+      };
+    }, markup);
+
+    const mergedSvg = await exportNow('svg');
+    const mergedDoc = await describeSvg(mergedSvg?.data ?? '');
+    check('the exported SVG parses', !mergedDoc.error);
+    check('exporting from Semantic writes the merged diagram, not the two versions',
+      mergedDoc.nested === 1, `nested svg: ${mergedDoc.nested}`);
+    check('still titled with both sides, so the image says what it compares',
+      mergedDoc.text.includes('HEAD') && mergedDoc.text.includes('Working Tree'),
+      mergedDoc.text.slice(0, 80));
+    // The on-screen legend is HTML in the panel header; it cannot travel with the file.
+    check('and carries its own key, which the panel legend cannot supply',
+      ['Added', 'Removed', 'Changed'].every((k) => mergedDoc.text.includes(k)),
+      mergedDoc.text.slice(0, 120));
+
+    const mergedPng = Buffer.from((await exportNow('png'))?.data ?? '', 'base64');
+    check('and rasterises to a real PNG rather than an empty canvas',
+      mergedPng.subarray(1, 4).toString() === 'PNG' && mergedPng.length > 2000,
+      `${mergedPng.length} bytes`);
+
     // The fallback. A sequence diagram can't be graphed, and the mode must say so rather than
     // showing an empty pane.
     await compare(page, 'sequenceDiagram\n  A ->> B: hi', 'sequenceDiagram\n  A ->> B: hello');
@@ -554,11 +594,24 @@ async function main() {
     check('editing back to a flowchart restores the merged diagram',
       (await page.isVisible('#merged-viewport')) && !(await page.isVisible('#semantic-notice')));
 
+    // A fallback is showing two panes, so it must export two — the mode alone doesn't decide.
+    await compare(page, 'sequenceDiagram\n  A ->> B: hi', 'sequenceDiagram\n  A ->> B: hello');
+    await settle(page);
+    const fallbackDoc = await describeSvg((await exportNow('svg'))?.data ?? '');
+    check('a fallback exports both versions, matching what it is showing',
+      fallbackDoc.nested === 2, `nested svg: ${fallbackDoc.nested}`);
+
+    await compare(page, SEMANTIC_BEFORE, SEMANTIC_AFTER);
+    await settle(page);
     await page.selectOption('#mode', 'sideBySide');
     await settle(page);
     check('leaving semantic puts the two panes back',
       (await page.isVisible('#left-viewport')) && !(await page.isVisible('#merged-viewport')));
     check('and hides the legend', !(await page.isVisible('#semantic-legend')));
+
+    const backDoc = await describeSvg((await exportNow('svg'))?.data ?? '');
+    check('and the export goes back to writing both versions',
+      backDoc.nested === 2, `nested svg: ${backDoc.nested}`);
   }
 
   console.log('\nexport');

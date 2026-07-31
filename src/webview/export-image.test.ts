@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { composeComparison, type ExportSide } from './export-image';
+import { composeComparison, composeMerged, type ExportSide, type MergedImage } from './export-image';
 
 const side = (over: Partial<ExportSide> = {}): ExportSide => ({
   label: 'HEAD',
@@ -152,5 +152,122 @@ describe('composeComparison', () => {
     const markup = composeComparison({ left: side(), right: side() });
 
     expect(root(markup).getAttribute('xmlns')).toBe('http://www.w3.org/2000/svg');
+  });
+});
+
+describe('composeMerged', () => {
+  const keys = [
+    { label: 'Added', colour: '#1a7f37' },
+    { label: 'Removed', colour: '#cf222e', dashed: true },
+    { label: 'Changed', colour: '#9a6700' },
+  ];
+
+  const merged = (over: Partial<MergedImage> = {}) =>
+    composeMerged({ diagram: side({ label: 'HEAD → Working Tree' }), legend: keys, ...over });
+
+  it('produces a parseable SVG document holding the one diagram', () => {
+    const image = merged();
+
+    expect(parse(image).querySelector('parsererror')).toBeNull();
+    expect(nested(image)).toHaveLength(1);
+  });
+
+  it('is only as wide as the diagram and its padding — there is no second side', () => {
+    const image = merged({
+      diagram: side({ width: 300 }),
+      legend: keys,
+      padding: 10,
+    });
+
+    expect(root(image).getAttribute('width')).toBe('320'); // 10 + 300 + 10
+  });
+
+  it('leaves room for the title and the legend above the diagram', () => {
+    const image = merged({
+      diagram: side({ height: 200 }),
+      legend: keys,
+      padding: 10,
+      labelHeight: 24,
+      legendHeight: 20,
+    });
+
+    expect(root(image).getAttribute('height')).toBe('264'); // 10 + 24 + 20 + 200 + 10
+  });
+
+  it('takes no legend room when there is no legend to draw', () => {
+    const image = merged({
+      diagram: side({ height: 200 }),
+      legend: [],
+      padding: 10,
+      labelHeight: 24,
+      legendHeight: 20,
+    });
+
+    expect(root(image).getAttribute('height')).toBe('244'); // 10 + 24 + 200 + 10, no legend row
+  });
+
+  it('titles the image with both sides, so it still says what it compares', () => {
+    expect(parse(merged()).documentElement.textContent).toContain('HEAD → Working Tree');
+  });
+
+  it('escapes the title rather than letting it break the document', () => {
+    const image = merged({ diagram: side({ label: 'a & b <c>' }), legend: keys });
+
+    expect(parse(image).querySelector('parsererror')).toBeNull();
+    expect(parse(image).documentElement.textContent).toContain('a & b <c>');
+  });
+
+  // The on-screen legend is HTML in the panel header and doesn't travel with the image. Pasted
+  // into a pull request, an unexplained green box is just a green box.
+  it('draws a key for each kind, in the colours the diagram was drawn with', () => {
+    const image = merged();
+    const text = parse(image).documentElement.textContent;
+
+    for (const key of keys) {
+      expect(text).toContain(key.label);
+      expect(image.markup).toContain(key.colour);
+    }
+  });
+
+  it('lists only the kinds it was given, so an unchanged kind is not implied', () => {
+    const image = merged({ diagram: side(), legend: [{ label: 'Added', colour: '#1a7f37' }] });
+    const text = parse(image).documentElement.textContent;
+
+    expect(text).toContain('Added');
+    expect(text).not.toContain('Removed');
+    expect(text).not.toContain('Changed');
+  });
+
+  it('dashes the removed swatch, so colour is not the only signal', () => {
+    const swatches = [...parse(merged()).documentElement.querySelectorAll('rect')];
+    const dashed = swatches.filter((r) => r.getAttribute('stroke-dasharray'));
+
+    expect(dashed).toHaveLength(1);
+    expect(dashed[0].getAttribute('stroke')).toBe('#cf222e');
+  });
+
+  it('paints a background, since a dark render on transparency is invisible', () => {
+    const image = merged({ diagram: side(), legend: keys, background: '#1e1e1e' });
+
+    expect(parse(image).documentElement.querySelector('rect')?.getAttribute('fill')).toBe('#1e1e1e');
+  });
+
+  it('still has usable dimensions when the merged diagram never rendered', () => {
+    const image = merged({ diagram: side({ svg: undefined, width: 0, height: 0 }), legend: keys });
+
+    expect(image.width).toBeGreaterThan(0);
+    expect(image.height).toBeGreaterThan(0);
+    expect(parse(image).documentElement.textContent).toContain('(no diagram)');
+  });
+
+  it('reports the size it drew, matching the markup exactly', () => {
+    const image = merged();
+
+    expect(root(image).getAttribute('width')).toBe(String(image.width));
+    expect(root(image).getAttribute('height')).toBe(String(image.height));
+  });
+
+  it('declares the SVG namespace, or nothing will render it as an image', () => {
+    expect(root(merged()).getAttribute('xmlns')).toBe('http://www.w3.org/2000/svg');
   });
 });

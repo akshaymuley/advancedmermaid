@@ -88,11 +88,17 @@ without touching the picker.
 
 ### Exporting
 
-**Export…** writes both diagrams side by side, under their pane labels, as a single image. Pick a
-`.svg` or `.png` name in the save dialog — the extension you choose decides the format. The export
-is the *comparison*, not the current view: it ignores pan, zoom and the mode you happen to be in,
-and always lays the two versions out side by side at their natural size, on a background matching
-your theme.
+**Export…** writes the comparison as a single image. Pick a `.svg` or `.png` name in the save
+dialog — the extension you choose decides the format.
+
+What comes out is the *comparison*, not a screenshot: pan, zoom, Overlay, Swipe and Blink are ways
+of **looking** at two diagrams, so the export ignores them and lays both versions out side by side
+under their pane labels, at their natural size, on a background matching your theme.
+
+Semantic is the exception, because it isn't a way of looking — the merged diagram is a comparison
+in its own right, one neither pane holds. Export from Semantic and you get that diagram, titled
+with both sides and carrying its own key, since the legend in the panel can't travel with the file.
+If Semantic has fallen back to showing both versions, so does the export.
 
 ### Inspecting one side
 

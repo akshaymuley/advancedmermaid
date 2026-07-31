@@ -1,10 +1,10 @@
 import mermaid from 'mermaid';
 import { isBlankDiagram } from './diagram-source';
-import { composeComparison, type ExportSide } from './export-image';
+import { composeComparison, composeMerged, type ExportSide, type LegendKey } from './export-image';
 import { Box, computeFitView, dividerPercent, panBy, View, zoomAt } from './view-math';
 import { initialViewMode, isStacked, setMode, syncAvailable, toggleSync, ViewMode } from './view-mode';
 import { parseFlowchart } from './flowchart-parse';
-import { diffFlowcharts } from './flowchart-diff';
+import { diffFlowcharts, type ChangeKind } from './flowchart-diff';
 import { mergeSource, type MergeColours } from './flowchart-merge';
 
 type Pane = 'left' | 'right';
@@ -284,6 +284,18 @@ let mergedRendered: string | undefined;
 let hasGoodMerged = false;
 
 /**
+ * Which kinds the current diff actually holds, in a fixed order, for the exported image's key.
+ * Kept from the diff rather than reparsed at export time — and only the kinds present, since
+ * listing one nothing uses would report a change that didn't happen.
+ */
+const LEGEND_KINDS: { kind: Exclude<ChangeKind, 'unchanged'>; label: string; dashed?: boolean }[] = [
+  { kind: 'added', label: 'Added' },
+  { kind: 'removed', label: 'Removed', dashed: true },
+  { kind: 'changed', label: 'Changed' },
+];
+let mergedLegend: LegendKey[] = [];
+
+/**
  * Render the two sides as one merged diagram. Returns false when they can't be diffed — a
  * sequence diagram, a class diagram, or a source too broken to parse — which is the caller's cue
  * to fall back to showing both versions.
@@ -297,7 +309,18 @@ async function renderMerged(): Promise<boolean> {
     return false;
   }
 
-  const source = mergeSource(diffFlowcharts(before, after), after, SEMANTIC_COLOURS);
+  const diff = diffFlowcharts(before, after);
+  mergedLegend = LEGEND_KINDS.filter(
+    ({ kind }) =>
+      diff.nodes.some((change) => change.kind === kind) ||
+      diff.edges.some((change) => change.kind === kind),
+  ).map(({ kind, label, dashed }) => ({
+    label,
+    colour: SEMANTIC_COLOURS[kind],
+    ...(dashed ? { dashed } : {}),
+  }));
+
+  const source = mergeSource(diff, after, SEMANTIC_COLOURS);
   if (mergedRendered === source && hasGoodMerged) {
     return true;
   }
@@ -494,27 +517,46 @@ const PNG_SCALE = 2;
 const cssVar = (name: string, dark: string, light: string): string =>
   getComputedStyle(document.body).getPropertyValue(name).trim() || (isDark ? dark : light);
 
-/** One side as the composer wants it: its markup and the size that markup is drawn at. */
-function exportSide(pane: Pane): ExportSide {
-  const svg = el(`${pane}-viewport`).querySelector('svg');
-  const box = contentBoxes[pane];
+/**
+ * One surface as the composer wants it: its markup and the size that markup is drawn at.
+ *
+ * The label is passed in rather than read from the DOM, because the merged surface has no header
+ * of its own — in semantic mode the two pane labels are hidden, and the image is titled with both.
+ */
+function exportSide(surface: Surface, label: string): ExportSide {
+  const svg = el(`${surface}-viewport`).querySelector('svg');
+  const box = contentBoxes[surface];
 
   return {
-    label: el(`${pane}-label`).textContent ?? pane,
+    label,
     svg: svg && box ? new XMLSerializer().serializeToString(svg) : undefined,
     width: box?.width ?? 0,
     height: box?.height ?? 0,
   };
 }
 
+const paneLabel = (pane: Pane): string => el(`${pane}-label`).textContent ?? pane;
+
+// Baked in, not left transparent: a dark-theme render is light text, which disappears the moment
+// a viewer composites it onto white.
+const exportBackground = () => cssVar('--vscode-editor-background', '#1e1e1e', '#ffffff');
+const exportForeground = () => cssVar('--vscode-foreground', '#cccccc', '#333333');
+
 const comparisonImage = () =>
   composeComparison({
-    left: exportSide('left'),
-    right: exportSide('right'),
-    // Baked in, not left transparent: a dark-theme render is light text, which disappears the
-    // moment a viewer composites it onto white.
-    background: cssVar('--vscode-editor-background', '#1e1e1e', '#ffffff'),
-    foreground: cssVar('--vscode-foreground', '#cccccc', '#333333'),
+    left: exportSide('left', paneLabel('left')),
+    right: exportSide('right', paneLabel('right')),
+    background: exportBackground(),
+    foreground: exportForeground(),
+  });
+
+/** The merged diff, titled with both sides so the image still says what it compares. */
+const mergedImage = () =>
+  composeMerged({
+    diagram: exportSide('merged', `${paneLabel('left')} → ${paneLabel('right')}`),
+    legend: mergedLegend,
+    background: exportBackground(),
+    foreground: exportForeground(),
   });
 
 /**
@@ -543,7 +585,10 @@ function rasterise(svg: string, width: number, height: number): Promise<string> 
 }
 
 async function sendExport(format: 'svg' | 'png'): Promise<void> {
-  const image = comparisonImage();
+  // Export what the mode means, not what the screen shows: overlay, swipe and blink are ways of
+  // looking at two diagrams, so they still write the comparison. A merged diff *is* a comparison,
+  // and a semantic fallback is showing two panes, so it writes two.
+  const image = showingMerged() ? mergedImage() : comparisonImage();
 
   if (format === 'svg') {
     vscodeApi.postMessage({ type: 'exportData', format, data: image.markup });

@@ -9,7 +9,7 @@ diagrams side-by-side, opens framed, follows edits to whichever files it is show
 failures by kind. Panes pan/zoom together or independently, and each comparison gets its own tab.
 Each pane names its own file, diagram, and version, so a comparison can span two refs or two files.
 The two versions can also be stacked — faded, split at a divider, or blinked between — and exported
-side by side as SVG or PNG. **Milestones 1–6 complete.**
+as SVG or PNG, either side by side or as the merged diff. **Milestones 1–6 complete.**
 
 Everything since v1.0.1 sits in `[Unreleased]` — two milestones' worth, since nothing has been
 tagged in between. Whether that ships as one version or as v1.1.0 followed by v1.2.0 is a decision
@@ -29,17 +29,17 @@ flowchart. Only extending it past `flowchart` remains, and that one is waiting o
 | `src/git-errors.ts` | 73 | Pure failure classification + user-facing messages |
 | `src/comparePanel.ts` | 305 | Webview panel registry, CSP shell, per-side edit tracking, refresh, export round trip |
 | `src/debounce.ts` | 45 | Pure debounce with `cancel()` / `flush()` |
-| `src/webview/main.ts` | 644 | Mermaid render, pan/zoom, mode/divider/blink/semantic wiring, export composition + rasterise |
+| `src/webview/main.ts` | 702 | Mermaid render, pan/zoom, mode/divider/blink/semantic wiring, export composition + rasterise |
 | `src/webview/view-math.ts` | 93 | Pure fit / zoom-anchor / clamp maths + `dividerPercent` |
 | `src/webview/panel-body.ts` | 61 | The panel DOM, shared by the real panel and the harness |
 | `src/webview/view-mode.ts` | 78 | Pure comparison-mode state, its layout category, and its sync interaction |
-| `src/webview/export-image.ts` | 103 | Pure SVG composition of the two diagrams for export |
+| `src/webview/export-image.ts` | 211 | Pure SVG composition for export — the two diagrams, or the merged one under its key |
 | `src/webview/flowchart-parse.ts` | 392 | Pure `flowchart`/`graph` source → nodes, edges, subgraphs; `null` for anything else |
 | `src/webview/flowchart-diff.ts` | 139 | Pure graph diff — added / removed / changed, in a stable order |
 | `src/webview/flowchart-merge.ts` | 149 | Pure: a diff back out as one mermaid source, changes styled |
 | `src/webview/diagram-source.ts` | 7 | `isBlankDiagram()` |
 | `src/test/harness/main.ts` | 61 | Boots the webview outside VS Code for Playwright |
-| `scripts/verify-view.mjs` | 643 | `npm run verify:view` — 115 browser checks + screenshots |
+| `scripts/verify-view.mjs` | 716 | `npm run verify:view` — 125 browser checks + screenshots |
 | `scripts/make-vscode-screenshots.mjs` | 254 | Captures `docs/images/` from a real VS Code over CDP |
 | `src/test/screenshots/driver.ts` | 67 | Sequences the panel states for that capture, in-host |
 | `src/mermaid-file.ts` | 28 | `classifySource()` — pure file-type guard (mermaid vs markdown) |
@@ -301,6 +301,17 @@ Split in two: everything *up to* the tag, then the publish itself.
       **Deliberately not a screenshot.** The export is the comparison, so it ignores pan, zoom and
       the current mode; blink has no still frame to capture anyway, and the alternative meant three
       composition paths for no gain.
+      *Refined once semantic mode existed:* the rule is not "ignore the mode" but "export the
+      comparison". Overlay, swipe and blink are ways of **looking** at two diagrams, so they still
+      write both sides — but a merged diff is a comparison in its own right, one neither pane
+      holds, so exporting it follows the rule rather than bending it. `composeComparison` and
+      `composeMerged` now share one private layout, so the geometry of the two cannot drift; the
+      thirteen tests written for the former still pass unedited, which is what says the
+      generalisation was faithful.
+      The merged export **draws its own key**: the on-screen legend is HTML in the panel header, so
+      an image pasted into a pull request would otherwise arrive as unexplained green and red boxes.
+      Only the kinds the diff actually holds are listed, matching what `mergeSource` does with
+      `classDef`.
       *Two assumptions probed before building, both wrong:* mermaid's flowchart labels **are**
       `<foreignObject>`, but current Chromium rasterises them into a canvas without tainting it —
       so no `htmlLabels: false`, and on-screen rendering was left alone. Ten minutes of probing

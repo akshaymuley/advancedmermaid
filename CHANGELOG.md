@@ -20,8 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Export the comparison as SVG or PNG.** A new **Export…** button writes both diagrams side by
   side under their labels, as one image — the thing you actually want to paste into a pull
   request. The extension you pick in the save dialog decides the format; PNG is rasterised at 2×.
-  The image is the comparison rather than a screenshot: it ignores pan, zoom and the current mode,
-  and paints your theme's background so a dark render doesn't come out as invisible text.
+  The image is the comparison rather than a screenshot: it ignores pan, zoom, and the Overlay,
+  Swipe and Blink modes, and paints your theme's background so a dark render doesn't come out as
+  invisible text. Exporting from **Semantic** writes the merged diagram instead — that one isn't a
+  way of looking at two diagrams, it's a comparison in its own right — titled with both sides and
+  carrying its own key, since the legend in the panel can't travel with the file.
 - **Blink mode.** Alternates between the two versions in place, which is what catches a node that
   moved only slightly — hard to see faded, impossible across a gap, obvious when it jumps. Three
   speeds (the fastest is a 0.8s cycle, well under the flash threshold in WCAG 2.3.1) and a Pause
