@@ -3,7 +3,7 @@ import { debounce } from './debounce';
 import { selectDiagram } from './diagram-selection';
 import { classifySource } from './mermaid-file';
 import { panelKey } from './panel-key';
-import { followsEditor, type SideSource, type SideSources } from './side-source';
+import { tracksDocument, type SideTarget } from './side-source';
 import { PANEL_BODY_HTML } from './webview/panel-body';
 
 /** How long to wait after the last keystroke before re-rendering the working-tree pane. */
@@ -14,23 +14,30 @@ export interface Side {
   content: string;
 }
 
-export interface CompareData {
-  /** The file being compared; tracked so edits to it can refresh the panel. */
+/** A `SideTarget` carrying a real `vscode.Uri`, so the host can open the file it names. */
+export interface PanelTarget extends SideTarget {
   uri: vscode.Uri;
-  /** Where each pane's diagram comes from. Either may be the working tree, or neither. */
-  sources: SideSources;
-  title: string;
+}
+
+export interface PanelTargets {
+  left: PanelTarget;
+  right: PanelTarget;
+}
+
+export interface CompareData {
   /**
-   * Which ```mermaid fence to show, for Markdown sources. Undefined for `.mmd` / `.mermaid`.
-   * Held here so a refresh re-reads the same diagram after an edit shifts the line numbers.
+   * What each pane shows: its file, its diagram within that file, and its version. The two are
+   * independent, so a comparison can span two files — and each is tracked separately, so an edit
+   * refreshes the pane showing that file.
    */
-  fence?: number;
+  targets: PanelTargets;
+  title: string;
   left: Side;
   right: Side;
 }
 
 /** Re-reads one side. Injected so the panel never has to know about git. */
-export type LoadSide = (source: SideSource) => Promise<Side>;
+export type LoadSide = (target: PanelTarget) => Promise<Side>;
 
 export class ComparePanel {
   /**
@@ -48,7 +55,7 @@ export class ComparePanel {
   private readonly scheduleRefresh = debounce(() => void this.refreshWorkingTree(), REFRESH_DELAY_MS);
 
   static show(extensionUri: vscode.Uri, data: CompareData, loadSide: LoadSide): void {
-    const key = panelKey(data);
+    const key = panelKey(data.targets);
     const existing = ComparePanel.open.get(key);
     if (existing) {
       existing.update(data, loadSide);
@@ -114,15 +121,9 @@ export class ComparePanel {
     });
   }
 
-  /**
-   * Whether an edit to this document should refresh this panel. A comparison between two refs is
-   * a fixed pair of commits: the file being open and edited says nothing about it, so it stays
-   * put rather than re-rendering under the user.
-   */
+  /** Whether an edit to this document should refresh this panel. */
   private tracks(document: vscode.TextDocument): boolean {
-    return (
-      followsEditor(this.data.sources) && document.uri.toString() === this.data.uri.toString()
-    );
+    return tracksDocument(this.data.targets, document.uri.toString());
   }
 
   private update(data: CompareData, loadSide: LoadSide): void {
@@ -133,15 +134,22 @@ export class ComparePanel {
     this.flush();
   }
 
-  /** Re-read the editor side only — the cheap path taken while the user types. */
+  /**
+   * Re-read the editor sides only — the cheap path taken while the user types. Each working-tree
+   * pane reads its own file, since the two sides need not be the same one.
+   */
   private async refreshWorkingTree(): Promise<void> {
-    const document = await vscode.workspace.openTextDocument(this.data.uri);
-    const side = (which: 'left' | 'right'): Side =>
-      this.data.sources[which].kind === 'workingTree'
-        ? workingTreeSide(document, this.data.fence)
-        : this.data[which];
+    const read = async (which: 'left' | 'right'): Promise<Side> => {
+      const target = this.data.targets[which];
+      if (target.source.kind !== 'workingTree') {
+        return this.data[which];
+      }
+      const document = await vscode.workspace.openTextDocument(target.uri);
+      return workingTreeSide(document, target.fence);
+    };
 
-    this.update({ ...this.data, left: side('left'), right: side('right') }, this.loadSide);
+    const [left, right] = await Promise.all([read('left'), read('right')]);
+    this.update({ ...this.data, left, right }, this.loadSide);
   }
 
   /** Re-read both sides, including a fresh `git show` — the Refresh button. */
@@ -149,8 +157,8 @@ export class ComparePanel {
     this.scheduleRefresh.cancel();
     try {
       const [left, right] = await Promise.all([
-        this.loadSide(this.data.sources.left),
-        this.loadSide(this.data.sources.right),
+        this.loadSide(this.data.targets.left),
+        this.loadSide(this.data.targets.right),
       ]);
       this.update({ ...this.data, left, right }, this.loadSide);
     } catch (err) {

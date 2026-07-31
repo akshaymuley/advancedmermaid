@@ -1,31 +1,37 @@
 import { describe, it, expect } from 'vitest';
 import { panelKey } from './panel-key';
-import type { SideSources } from './side-source';
+import type { SideSource, SideTarget, SideTargets } from './side-source';
 
-const uri = (value: string) => ({ toString: () => value });
-const vsWorkingTree = (ref: string): SideSources => ({
-  left: { kind: 'ref', ref },
-  right: { kind: 'workingTree' },
+const target = (path: string, source: SideSource, fence?: number): SideTarget => ({
+  uri: { toString: () => `file:///repo/${path}`, fsPath: `/repo/${path}` },
+  kind: path.endsWith('.md') ? 'markdown' : 'mermaid',
+  fence,
+  source,
 });
-const refs = (left: string, right: string): SideSources => ({
-  left: { kind: 'ref', ref: left },
-  right: { kind: 'ref', ref: right },
+
+const tree = (path: string, fence?: number) => target(path, { kind: 'workingTree' }, fence);
+const at = (path: string, ref: string, fence?: number) =>
+  target(path, { kind: 'ref', ref }, fence);
+
+/** One file against a ref — the everyday comparison. */
+const vsWorkingTree = (path: string, ref: string, fence?: number): SideTargets => ({
+  left: at(path, ref, fence),
+  right: tree(path, fence),
 });
 
 describe('panelKey', () => {
   it('is stable for the same comparison', () => {
-    const source = { uri: uri('file:///repo/notes.md'), sources: vsWorkingTree('HEAD'), fence: 1 };
-
-    expect(panelKey(source)).toBe(panelKey({ ...source }));
+    expect(panelKey(vsWorkingTree('notes.md', 'HEAD', 1))).toBe(
+      panelKey(vsWorkingTree('notes.md', 'HEAD', 1))
+    );
   });
 
   it('separates comparisons that differ by file, ref, or fence', () => {
-    const base = { uri: uri('file:///repo/notes.md'), sources: vsWorkingTree('HEAD'), fence: 0 };
     const keys = new Set([
-      panelKey(base),
-      panelKey({ ...base, uri: uri('file:///repo/other.md') }),
-      panelKey({ ...base, sources: vsWorkingTree('v1.0.0') }),
-      panelKey({ ...base, fence: 1 }),
+      panelKey(vsWorkingTree('notes.md', 'HEAD', 0)),
+      panelKey(vsWorkingTree('other.md', 'HEAD', 0)),
+      panelKey(vsWorkingTree('notes.md', 'v1.0.0', 0)),
+      panelKey(vsWorkingTree('notes.md', 'HEAD', 1)),
     ]);
 
     expect(keys.size).toBe(4);
@@ -34,25 +40,37 @@ describe('panelKey', () => {
   it('separates a whole-file comparison from the first fence of a Markdown file', () => {
     // `.mmd` files carry no fence at all. If undefined collapsed onto 0, a diagram file and the
     // first block of a Markdown file could share a panel.
-    const base = { uri: uri('file:///repo/diagram.mmd'), sources: vsWorkingTree('HEAD') };
-
-    expect(panelKey(base)).not.toBe(panelKey({ ...base, fence: 0 }));
+    expect(panelKey(vsWorkingTree('diagram.mmd', 'HEAD'))).not.toBe(
+      panelKey(vsWorkingTree('diagram.mmd', 'HEAD', 0))
+    );
   });
 
   it('tells the two directions of a ref-to-ref comparison apart', () => {
     // old↔new and new↔old put different diagrams on the left, so they are different panels.
-    const base = { uri: uri('file:///repo/diagram.mmd'), fence: 0 };
-
-    expect(panelKey({ ...base, sources: refs('v1.0.0', 'main') })).not.toBe(
-      panelKey({ ...base, sources: refs('main', 'v1.0.0') })
+    expect(panelKey({ left: at('a.mmd', 'v1.0.0'), right: at('a.mmd', 'main') })).not.toBe(
+      panelKey({ left: at('a.mmd', 'main'), right: at('a.mmd', 'v1.0.0') })
     );
   });
 
   it('separates a ref-to-ref comparison from one against the working tree', () => {
-    const base = { uri: uri('file:///repo/diagram.mmd'), fence: 0 };
+    expect(panelKey(vsWorkingTree('a.mmd', 'main'))).not.toBe(
+      panelKey({ left: at('a.mmd', 'main'), right: at('a.mmd', 'main') })
+    );
+  });
 
-    expect(panelKey({ ...base, sources: vsWorkingTree('main') })).not.toBe(
-      panelKey({ ...base, sources: refs('main', 'main') })
+  it('separates two-file comparisons from each other and by direction', () => {
+    const keys = new Set([
+      panelKey({ left: tree('old.md'), right: tree('new.mmd') }),
+      panelKey({ left: tree('new.mmd'), right: tree('old.md') }),
+      panelKey({ left: tree('older.md'), right: tree('new.mmd') }),
+    ]);
+
+    expect(keys.size).toBe(3);
+  });
+
+  it("keys each side's fence separately, since two files number their diagrams alone", () => {
+    expect(panelKey({ left: tree('old.md', 0), right: tree('new.md', 1) })).not.toBe(
+      panelKey({ left: tree('old.md', 1), right: tree('new.md', 1) })
     );
   });
 
@@ -60,17 +78,12 @@ describe('panelKey', () => {
     // The ref is whatever the user typed; git would reject one containing a space, but panelKey
     // sees the string first. Plain concatenation lets the same characters split two ways, so
     // these two distinct comparisons would quietly share a panel.
-    const a = panelKey({ uri: uri('file:///repo/a'), sources: vsWorkingTree('b c'), fence: 0 });
-    const b = panelKey({ uri: uri('file:///repo/a b'), sources: vsWorkingTree('c'), fence: 0 });
-
-    expect(a).not.toBe(b);
+    expect(panelKey(vsWorkingTree('a', 'b c', 0))).not.toBe(panelKey(vsWorkingTree('a b', 'c', 0)));
   });
 
   it('is case-sensitive about the ref, since git is', () => {
-    const base = { uri: uri('file:///repo/notes.md'), fence: 0 };
-
-    expect(panelKey({ ...base, sources: vsWorkingTree('Main') })).not.toBe(
-      panelKey({ ...base, sources: vsWorkingTree('main') })
+    expect(panelKey(vsWorkingTree('notes.md', 'Main', 0))).not.toBe(
+      panelKey(vsWorkingTree('notes.md', 'main', 0))
     );
   });
 });

@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { getGitContent, listRefs } from '../../git';
 import { orderRefs } from '../../ref-list';
-import { compare } from '../../extension';
+import { compare, fromRef, fromTree } from '../../extension';
 
 /**
  * These run inside a real VS Code. Everything asserted here is something the unit tests and the
@@ -68,6 +68,7 @@ describe('advanced-mermaid in a real VS Code host', () => {
       'mermaidCompare.compareWithHead',
       'mermaidCompare.compareWithRef',
       'mermaidCompare.compareBetweenRefs',
+      'mermaidCompare.compareWithFile',
     ]) {
       assert.ok(commands.includes(command), `${command} should be registered`);
     }
@@ -189,10 +190,8 @@ describe('advanced-mermaid in a real VS Code host', () => {
    * command's job is to collect the two refs from QuickPicks and that can't be driven from here.
    */
   it('compares one file between two refs', async () => {
-    await compare(extensionUri(), workspaceFile('samples', 'pipeline.mmd'), {
-      left: { kind: 'ref', ref: 'HEAD~1' },
-      right: { kind: 'ref', ref: 'HEAD' },
-    });
+    const uri = workspaceFile('samples', 'pipeline.mmd');
+    await compare(extensionUri(), fromRef(uri, 'HEAD~1'), fromRef(uri, 'HEAD'));
 
     await waitFor('a panel naming both refs', () =>
       openTabTitles().includes('Compare: pipeline.mmd — HEAD~1 ↔ HEAD')
@@ -202,7 +201,7 @@ describe('advanced-mermaid in a real VS Code host', () => {
   /**
    * A smoke test, and honest about it: editing the file while a ref-to-ref panel is open must not
    * disturb or close it. It cannot see *whether* a refresh ran, because a refresh would produce
-   * the same two ref-sourced panes and the same title — `followsEditor` is unit-tested in
+   * the same two ref-sourced panes and the same title — `tracksDocument` is unit-tested in
    * `side-source.test.ts` for that. What this does cover is the wiring around it: that the edit
    * path doesn't throw or dispose the panel when neither side is the working tree.
    */
@@ -211,10 +210,7 @@ describe('advanced-mermaid in a real VS Code host', () => {
     await vscode.workspace.fs.writeFile(uri, Buffer.from('flowchart TD\n    A --> B\n'));
 
     try {
-      await compare(extensionUri(), uri, {
-        left: { kind: 'ref', ref: 'HEAD' },
-        right: { kind: 'ref', ref: 'HEAD' },
-      });
+      await compare(extensionUri(), fromRef(uri, 'HEAD'), fromRef(uri, 'HEAD'));
       await waitFor('the ref-to-ref panel', () =>
         openTabTitles().includes('Compare: scratch-refs.mmd — HEAD ↔ HEAD')
       );
@@ -233,6 +229,59 @@ describe('advanced-mermaid in a real VS Code host', () => {
       );
     } finally {
       await vscode.workspace.fs.delete(uri);
+    }
+  });
+
+  /**
+   * Two different files in one panel — a `.mmd` against a fence inside a `.md`, so both reading
+   * paths are exercised at once. Driven through `compare` for the same reason as the ref-to-ref
+   * test: the command's job is the file picker, which can't be driven from here.
+   */
+  it('compares two different files', async () => {
+    await compare(
+      extensionUri(),
+      fromTree(workspaceFile('samples', 'pipeline.mmd')),
+      fromTree(workspaceFile('samples', 'adr.md'))
+    );
+
+    await waitFor('a panel naming both files', () =>
+      openTabTitles().includes('Compare: pipeline.mmd ↔ adr.md')
+    );
+  });
+
+  /**
+   * The two-file counterpart of the ref-to-ref edit test, and honest in the same way: the title
+   * doesn't change when a pane re-renders, so this covers the wiring — that an edit to the *left*
+   * file, which is no longer "the file being compared" in the old single-URI sense, is routed
+   * without throwing or disposing the panel. Which side an edit belongs to is unit-tested in
+   * `side-source.test.ts`.
+   */
+  it('survives edits to either file of a two-file comparison', async () => {
+    const left = workspaceFile('samples', 'scratch-left.mmd');
+    const right = workspaceFile('samples', 'scratch-right.mmd');
+    await vscode.workspace.fs.writeFile(left, Buffer.from('flowchart TD\n    A --> B\n'));
+    await vscode.workspace.fs.writeFile(right, Buffer.from('flowchart TD\n    A --> C\n'));
+
+    try {
+      await compare(extensionUri(), fromTree(left), fromTree(right));
+      const title = 'Compare: scratch-left.mmd ↔ scratch-right.mmd';
+      await waitFor('the two-file panel', () => openTabTitles().includes(title));
+
+      const document = await vscode.workspace.openTextDocument(left);
+      const editor = await vscode.window.showTextDocument(document);
+      await editor.edit((builder) =>
+        builder.insert(new vscode.Position(document.lineCount, 0), '    B --> D\n')
+      );
+
+      // Well past the 300 ms refresh debounce.
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      assert.ok(
+        openTabTitles().includes(title),
+        'the panel should still be comparing the same two files'
+      );
+    } finally {
+      await vscode.workspace.fs.delete(left);
+      await vscode.workspace.fs.delete(right);
     }
   });
 

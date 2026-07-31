@@ -42,15 +42,24 @@ export const window = {
   showInputBox: (_options?: unknown): Promise<string | undefined> => Promise.resolve(undefined),
   showQuickPick: (_items?: unknown, _options?: unknown): Promise<undefined> =>
     Promise.resolve(undefined),
+  showOpenDialog: (_options?: unknown): Promise<Uri[] | undefined> => Promise.resolve(undefined),
   createWebviewPanel: (..._args: unknown[]): unknown => {
     throw new Error('vscode-mock: createWebviewPanel is not stubbed; stub it in your test.');
   },
 };
 
 export const workspace = {
+  /** Every open document, comparable or not — the real one includes both. */
+  textDocuments: [] as { uri: Uri }[],
   openTextDocument: (_uri: Uri): Promise<unknown> => {
     throw new Error('vscode-mock: openTextDocument is not stubbed; stub it in your test.');
   },
+  findFiles: (_include: string, _exclude?: string, _max?: number): Promise<Uri[]> =>
+    Promise.resolve([]),
+  getConfiguration: (_section?: string) => ({
+    get: <T>(_key: string): T | undefined => undefined,
+  }),
+  asRelativePath: (uri: Uri | string): string => (typeof uri === 'string' ? uri : uri.fsPath),
 };
 
 export const extensions = {
