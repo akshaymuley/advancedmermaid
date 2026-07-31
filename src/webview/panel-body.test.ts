@@ -17,6 +17,9 @@ const REQUIRED_IDS = [
   'swipe-handle',
   'opacity',
   'opacity-control',
+  'blink-controls',
+  'blink-speed',
+  'blink-pause',
   'pane-headers',
   'left-label',
   'right-label',
@@ -61,7 +64,18 @@ describe('PANEL_BODY_HTML', () => {
       (option) => option.value
     );
 
-    expect(modes).toEqual(['sideBySide', 'overlay', 'swipe']);
+    expect(modes).toEqual(['sideBySide', 'overlay', 'swipe', 'blink']);
+  });
+
+  it('offers no blink speed fast enough to be a flash hazard', () => {
+    // WCAG 2.3.1 puts the general threshold at three flashes a second. The fastest option is a
+    // full cycle of 0.8s — 1.25Hz — and nothing faster is offered.
+    const cycles = [...document.querySelectorAll<HTMLOptionElement>('#blink-speed option')].map(
+      (option) => Number(option.value.replace('s', ''))
+    );
+
+    expect(cycles.length).toBeGreaterThan(0);
+    expect(Math.min(...cycles)).toBeGreaterThanOrEqual(0.7);
   });
 
   it('describes the swipe divider to assistive tech', () => {

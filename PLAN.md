@@ -23,13 +23,13 @@ tagged (see Known gaps), so Milestone 6 starts first.
 | `src/git-errors.ts` | 73 | Pure failure classification + user-facing messages |
 | `src/comparePanel.ts` | 225 | Webview panel registry, CSP shell, per-side edit tracking + refresh |
 | `src/debounce.ts` | 45 | Pure debounce with `cancel()` / `flush()` |
-| `src/webview/main.ts` | 396 | Mermaid render, per-pane pan/zoom, mode + divider wiring, last-good-render fallback |
+| `src/webview/main.ts` | 429 | Mermaid render, per-pane pan/zoom, mode/divider/blink wiring, last-good-render fallback |
 | `src/webview/view-math.ts` | 93 | Pure fit / zoom-anchor / clamp maths + `dividerPercent` |
-| `src/webview/panel-body.ts` | 51 | The panel DOM, shared by the real panel and the harness |
+| `src/webview/panel-body.ts` | 60 | The panel DOM, shared by the real panel and the harness |
 | `src/webview/view-mode.ts` | 63 | Pure comparison-mode state and its sync interaction |
 | `src/webview/diagram-source.ts` | 7 | `isBlankDiagram()` |
 | `src/test/harness/main.ts` | 61 | Boots the webview outside VS Code for Playwright |
-| `scripts/verify-view.mjs` | 387 | `npm run verify:view` — 68 browser checks + screenshots |
+| `scripts/verify-view.mjs` | 469 | `npm run verify:view` — 85 browser checks + screenshots |
 | `scripts/make-vscode-screenshots.mjs` | 254 | Captures `docs/images/` from a real VS Code over CDP |
 | `src/test/screenshots/driver.ts` | 67 | Sequences the panel states for that capture, in-host |
 | `src/mermaid-file.ts` | 28 | `classifySource()` — pure file-type guard (mermaid vs markdown) |
@@ -265,7 +265,24 @@ Split in two: everything *up to* the tag, then the publish itself.
       button, and blink is one more `<option>`. Overlay was unreleased, so nothing had to be kept
       working. The divider takes arrow keys, `Shift` for bigger steps and `Home`/`End` — it would
       otherwise be the only control in the panel a keyboard can't reach.
-- [ ] **Blink mode** — timed alternation between the two.
+- [x] **Blink mode** — timed alternation between the two. A CSS keyframe on the upper layer's
+      opacity, `steps(1, end)` so it swaps outright — a crossfade would blur the very movement the
+      mode exists to show. An animation rather than a `setInterval`: removing the class ends it,
+      so there is no timer to clear when the mode changes or the panel is disposed, which matters
+      because panels are kept alive while hidden (`retainContextWhenHidden`, above).
+      **Pause removes the animation rather than setting `animation-play-state: paused`.** The
+      first attempt paused it and set `opacity: 1` alongside, which looks obviously right and is
+      wrong: a paused animation still applies its current keyframe, and keyframe values outrank
+      normal declarations, so the pane froze blank half the time. Caught by the harness sampling
+      the computed opacity — never by reading the CSS.
+      `prefers-reduced-motion` **seeds** the paused state on entry rather than being enforced by a
+      CSS media query. A media rule would also override an explicit Resume, leaving anyone who
+      opted in with a dead button. Playwright can emulate the preference, so both halves — starts
+      paused, Resume still works — are actually tested.
+      Speeds top out at a 0.8s cycle (1.25Hz), well under the three-flashes-a-second threshold in
+      WCAG 2.3.1; a unit test pins that no faster option can be added by accident.
+      The legend animates in antiphase with the layers, since unlike the other stacked modes there
+      is no static answer to which version is on screen.
 - [ ] **Export comparison as PNG/SVG.**
 
 ## Milestone 7 — Semantic diff (v2.0.0)

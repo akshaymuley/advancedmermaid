@@ -282,12 +282,14 @@ function applyMode(): void {
   for (const id of ['panes', 'pane-headers']) {
     const classes = el(id).classList;
     classes.toggle('stacked', isStacked(mode));
-    classes.toggle('overlay', mode === 'overlay');
-    classes.toggle('swipe', mode === 'swipe');
+    for (const candidate of MODES) {
+      classes.toggle(candidate, candidate === mode);
+    }
   }
 
   (el('mode') as HTMLSelectElement).value = mode;
   el('opacity-control').hidden = mode !== 'overlay';
+  el('blink-controls').hidden = mode !== 'blink';
   el('sync').setAttribute('aria-pressed', String(isSynced()));
   (el('sync') as HTMLButtonElement).disabled = !syncAvailable(viewMode);
 
@@ -298,7 +300,17 @@ function applyMode(): void {
   applyView();
 }
 
+/** Every mode doubles as its layout class, so a new one needs no extra wiring here. */
+const MODES: ViewMode[] = ['sideBySide', 'overlay', 'swipe', 'blink'];
+
 const switchTo = (mode: ViewMode): void => {
+  // Someone who asked their OS for less motion gets a still frame and an explicit Resume, rather
+  // than an animation that starts on its own. Seeded here rather than forced by a CSS media
+  // query, which would also override that Resume and leave the button dead.
+  if (mode === 'blink') {
+    setBlinkPaused(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+
   viewMode = setMode(viewMode, mode);
   applyMode();
 
@@ -321,6 +333,27 @@ el('mode').addEventListener('change', (event) => {
 el('opacity').addEventListener('input', (event) => {
   const percent = Number((event.target as HTMLInputElement).value);
   el('panes').style.setProperty('--overlay-opacity', String(percent / 100));
+});
+
+// --- Blink ---
+
+/** One source of truth for the paused state: the class both animations honour. */
+function setBlinkPaused(paused: boolean): void {
+  for (const id of ['panes', 'pane-headers']) {
+    el(id).classList.toggle('paused', paused);
+  }
+  const button = el('blink-pause');
+  button.setAttribute('aria-pressed', String(paused));
+  button.textContent = paused ? 'Resume' : 'Pause';
+}
+
+el('blink-speed').addEventListener('change', (event) => {
+  el('panes').style.setProperty('--blink-duration', (event.target as HTMLSelectElement).value);
+  el('pane-headers').style.setProperty('--blink-duration', (event.target as HTMLSelectElement).value);
+});
+
+el('blink-pause').addEventListener('click', () => {
+  setBlinkPaused(el('blink-pause').getAttribute('aria-pressed') !== 'true');
 });
 
 // --- Swipe divider ---

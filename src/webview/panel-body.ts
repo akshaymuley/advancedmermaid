@@ -25,12 +25,21 @@ export const PANEL_BODY_HTML = `<div id="toolbar">
       <option value="sideBySide">Side by side</option>
       <option value="overlay">Overlay</option>
       <option value="swipe">Swipe</option>
+      <option value="blink">Blink</option>
     </select>
     <label id="opacity-control" hidden>
       <span class="visually-hidden">Opacity of the upper diagram</span>
       <input id="opacity" type="range" min="0" max="100" value="50"
              title="Opacity of the upper diagram">
     </label>
+    <span id="blink-controls" hidden>
+      <select id="blink-speed" aria-label="Blink speed" title="How fast the two diagrams alternate">
+        <option value="3s">Slow</option>
+        <option value="1.6s" selected>Medium</option>
+        <option value="0.8s">Fast</option>
+      </select>
+      <button id="blink-pause" aria-pressed="false" title="Pause the alternation">Pause</button>
+    </span>
     <button id="sync" aria-pressed="true" title="Pan and zoom both panes together">Sync</button>
     <button id="refresh" title="Re-read both sides, including the git ref">Refresh</button>
   </div>
