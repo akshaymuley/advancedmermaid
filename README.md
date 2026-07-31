@@ -21,6 +21,9 @@ Git diffs of Mermaid show text changes, but a one-line edit can completely rearr
   new on the right. Drag it, or focus it and use the arrow keys.
 - **Blink mode** — alternate between the two in place. A node that shifted a few pixels becomes
   obvious motion. Three speeds, and a Pause for when you want to stop and look.
+- **Semantic mode** — for flowcharts, one *merged* diagram instead of two: added nodes in green,
+  removed ones dashed in red, reworded ones in amber carrying the text they used to have. The
+  change is marked rather than left for your eye to find.
 - **Export** the comparison as SVG or PNG — both diagrams side by side, labelled, ready to paste
   into a pull request or an issue.
 - Diagrams open **fitted** to their panes. Zoom with the wheel, the buttons, or `+`/`-`/`0`.
@@ -64,6 +67,25 @@ reduced motion, Blink starts paused and waits for you to press Resume.
 All three modes register the layers at their top-left corners and share a single pan and zoom, so
 anything that moved shows up as movement rather than as two diagrams drifting apart.
 
+### Semantic diff
+
+The other four modes show you two diagrams and leave the comparing to you. **Semantic** does the
+comparing: it reads both versions as a graph of nodes and edges, works out what was added, removed
+and changed, and draws **one** diagram with the answer marked on it — additions in green, removals
+dashed in red, and a reworded node in amber carrying the text it used to have:
+
+```
+Build image (was: Build)
+```
+
+Mermaid lays the merged diagram out, so it looks like your diagram rather than like a diff tool's
+idea of one. Colour is never the only signal — removals are dashed as well as red.
+
+It reads flowcharts, which is to say `flowchart` and `graph`. Point it at a sequence or class
+diagram and it shows both versions side by side instead, with a line saying why. That decision is
+re-made as you type, so turning a diagram back into a flowchart brings the merged view back
+without touching the picker.
+
 ### Exporting
 
 **Export…** writes both diagrams side by side, under their pane labels, as a single image. Pick a
@@ -80,10 +102,11 @@ Both panes pan and zoom together by default. Turn **Sync** off to frame each sid
 
 ## Roadmap
 
-- [ ] Visual overlay modes (onion-skin, swipe, blink) like image diff tools
-- [ ] **Semantic diff** — parse both versions, diff the graph structure, and render one merged diagram with added/removed/changed elements highlighted. Stable layout, so the change jumps out.
-- [ ] Compare a diagram in one file against a diagram in another
-- [ ] Export comparison as image
+- [x] Visual overlay modes (onion-skin, swipe, blink) like image diff tools
+- [x] **Semantic diff** — parse both versions, diff the graph structure, and render one merged diagram with added/removed/changed elements highlighted. Stable layout, so the change jumps out.
+- [x] Compare a diagram in one file against a diagram in another
+- [x] Export comparison as image
+- [ ] Semantic diff for `sequenceDiagram` and `classDiagram` — flowcharts are supported today
 
 See [PLAN.md](PLAN.md) for the full milestone-by-milestone plan.
 

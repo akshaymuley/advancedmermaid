@@ -111,6 +111,13 @@ describe('parseFlowchart', () => {
       });
     });
 
+    // Node labels were unquoted from the start and edge labels were not, which only showed up
+    // when the merged render wrote a label back out and read it in again as `"yes"` with quotes.
+    it('unquotes an edge label, the same as a node label', () => {
+      expect(edges('  A -->|"yes"| B')?.[0].label).toBe('yes');
+      expect(edges('  A -- "no" --> B')?.[0].label).toBe('no');
+    });
+
     // The trap here is the lazy scan: an unguarded "-- anything --" also matches across
     // `A --> B --> C`, which would swallow `> B` as an edge label.
     it('does not read a chain of plain arrows as one labelled edge', () => {

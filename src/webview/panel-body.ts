@@ -12,6 +12,10 @@
  * the `hidden` attribute: an author `display` rule beats the UA stylesheet's `[hidden]`, which is
  * a trap this file has already sprung once.
  *
+ * The merged pane is a third pane rather than a reuse of one side. Semantic mode renders a diagram
+ * that is neither version, so borrowing a side would make it clobber that side's cached source and
+ * measured box, and the next live edit would re-render the wrong thing into it.
+ *
  * No `<script>` here — the panel injects one with a nonce, and the harness loads its own bundle.
  */
 export const PANEL_BODY_HTML = `<div id="toolbar">
@@ -26,6 +30,7 @@ export const PANEL_BODY_HTML = `<div id="toolbar">
       <option value="overlay">Overlay</option>
       <option value="swipe">Swipe</option>
       <option value="blink">Blink</option>
+      <option value="semantic">Semantic</option>
     </select>
     <label id="opacity-control" hidden>
       <span class="visually-hidden">Opacity of the upper diagram</span>
@@ -48,6 +53,12 @@ export const PANEL_BODY_HTML = `<div id="toolbar">
 <div id="pane-headers">
   <header data-side="left"><span id="left-label"></span><span class="badge" id="left-badge" hidden>!</span></header>
   <header data-side="right"><span id="right-label"></span><span class="badge" id="right-badge" hidden>!</span></header>
+  <p id="semantic-legend" hidden>
+    <span class="key added">Added</span>
+    <span class="key removed">Removed</span>
+    <span class="key changed">Changed</span>
+  </p>
+  <p id="semantic-notice" hidden role="status"></p>
 </div>
 <div id="panes">
   <section class="pane" data-side="left">
@@ -55,6 +66,9 @@ export const PANEL_BODY_HTML = `<div id="toolbar">
   </section>
   <section class="pane" data-side="right">
     <div class="canvas"><div class="viewport" id="right-viewport"></div></div>
+  </section>
+  <section class="pane" data-side="merged">
+    <div class="canvas"><div class="viewport" id="merged-viewport"></div></div>
   </section>
   <div id="swipe-handle" role="separator" tabindex="0" aria-orientation="vertical"
        aria-label="Swipe divider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"></div>

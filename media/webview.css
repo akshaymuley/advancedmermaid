@@ -150,6 +150,79 @@ body {
 }
 
 /*
+ * The merged pane holds the semantic diff and is out of the flow everywhere else. Hidden with
+ * `display` rather than the `hidden` attribute, for the same reason as #swipe-handle: an author
+ * `display` rule beats the UA stylesheet's `[hidden]`, so the two mechanisms must not be mixed.
+ */
+.pane[data-side='merged'] {
+  display: none;
+}
+
+#panes.semantic .pane[data-side='left'],
+#panes.semantic .pane[data-side='right'] {
+  display: none;
+}
+
+#panes.semantic .pane[data-side='merged'] {
+  display: flex;
+  border-left: none;
+}
+
+/* One merged diagram: the two file labels would each be describing half of it. */
+#pane-headers.semantic header {
+  display: none;
+}
+
+/* Sits in the header row the two pane labels vacate, and matches their metrics. */
+#semantic-legend {
+  display: flex;
+  gap: 16px;
+  margin: 0;
+  align-items: center;
+  padding: 4px 12px;
+  font-size: 0.85em;
+}
+
+#semantic-legend[hidden],
+#semantic-notice[hidden] {
+  display: none;
+}
+
+/* A swatch as well as a word: the colours alone would be the only signal of what they mean. */
+#semantic-legend .key::before {
+  content: '';
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-right: 0.35rem;
+  vertical-align: -1px;
+  border: 2px solid currentColor;
+}
+
+#semantic-legend .added {
+  color: var(--semantic-added, #1a7f37);
+}
+
+#semantic-legend .removed {
+  color: var(--semantic-removed, #cf222e);
+}
+
+#semantic-legend .removed::before {
+  border-style: dashed;
+}
+
+#semantic-legend .changed {
+  color: var(--semantic-changed, #9a6700);
+}
+
+#semantic-notice {
+  margin: 0;
+  opacity: 0.8;
+  padding: 4px 12px;
+  font-size: 0.85em;
+}
+
+/*
  * Stacked modes: both panes occupy the same grid cell, so the two renders sit on top of each
  * other. The right pane is later in the DOM and therefore on top, which is also the newer side —
  * no z-index needed. Both share one view (sync is forced on), so their content origins coincide

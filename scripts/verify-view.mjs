@@ -19,6 +19,12 @@ const VALID = 'flowchart TD\n  A[Start] --> B[Middle]\n  B --> C[End]';
 const BROKEN = 'flowchart TD\n  A[Start] -->';
 const WIDE = `flowchart LR\n${Array.from({ length: 12 }, (_, i) => `  N${i} --> N${i + 1}`).join('\n')}`;
 
+// Every change kind in one pair: A reworded, L added, D dropped, and B->C replaced by a detour.
+const SEMANTIC_BEFORE =
+  'flowchart TD\n  A[Build] --> B[Unit tests]\n  B --> C[Deploy]\n  B --> D[Notify]';
+const SEMANTIC_AFTER =
+  'flowchart TD\n  A[Build image] --> B[Unit tests]\n  B --> L[Lint]\n  L --> C[Deploy]';
+
 let failures = 0;
 let checks = 0;
 
@@ -443,6 +449,102 @@ async function main() {
     check('and hides its controls', !(await page.isVisible('#blink-controls')));
     check('and gives back the sync setting',
       (await page.getAttribute('#sync', 'aria-pressed')) === 'true');
+  }
+
+  console.log('\nsemantic mode');
+  {
+    /**
+     * The one mode whose output is a diagram this project *generated*, so the browser is the only
+     * place that can say whether mermaid accepts it. Every other mode fails visibly; a merged
+     * render that mermaid rejects would just leave an empty pane.
+     */
+    const mergedText = () => page.textContent('#merged-viewport');
+
+    await compare(page, SEMANTIC_BEFORE, SEMANTIC_AFTER);
+    await page.selectOption('#mode', 'semantic');
+    await settle(page);
+
+    check('the merged pane is the one on screen', await page.isVisible('#merged-viewport'));
+    check('and the two version panes are not',
+      !(await page.isVisible('#left-viewport')) && !(await page.isVisible('#right-viewport')));
+    check('mermaid accepted the generated source and drew it',
+      await page.evaluate(() => !!document.querySelector('#merged-viewport svg')));
+
+    const text = await mergedText();
+    check('the merged diagram holds nodes from both versions',
+      text.includes('Deploy') && text.includes('Unit tests'), text);
+    check('and says what a reworded node used to say',
+      text.includes('was: Build'), text);
+
+    // classDef reaches the SVG as a class on the node group; if the styling block were dropped or
+    // misnumbered the diagram would still render, just with nothing marked.
+    const marked = await page.evaluate(() => ({
+      added: document.querySelectorAll('#merged-viewport .added').length,
+      removed: document.querySelectorAll('#merged-viewport .removed').length,
+      changed: document.querySelectorAll('#merged-viewport .changed').length,
+    }));
+    check('the changes are actually marked up in the render',
+      marked.added > 0 && marked.removed > 0 && marked.changed > 0, JSON.stringify(marked));
+
+    // Edges take `linkStyle`, which mermaid applies as an inline style rather than as a class —
+    // so the node check above says nothing about them, and a misnumbered linkStyle would style
+    // the wrong edge or none at all while everything still rendered.
+    const dashedLink = await page.evaluate(() =>
+      [...document.querySelectorAll('#merged-viewport path')].some((p) =>
+        (p.getAttribute('style') ?? '').includes('stroke-dasharray')));
+    check('a removed edge is dashed too, so colour is not the only signal', dashedLink);
+
+    check('the legend is showing', await page.isVisible('#semantic-legend'));
+    check('and the notice is not, since the diff applied',
+      !(await page.isVisible('#semantic-notice')));
+    check('sync is pinned, there being one diagram to frame',
+      await page.evaluate(() => document.getElementById('sync').disabled));
+
+    // Semantic shares one view with the stacked modes but must not be laid out like them: the
+    // stacked grid would put the merged pane on top of the two it replaces.
+    check('the layout is semantic rather than stacked',
+      await page.evaluate(() => {
+        const panes = document.getElementById('panes').classList;
+        return panes.contains('semantic') && !panes.contains('stacked');
+      }));
+
+    const framed = await fitsInPane(page, 'merged');
+    check('the merged diagram is framed inside its pane', framed.ok, framed.reason);
+    await page.screenshot({ path: path.join(shots, '9-semantic.png') });
+
+    // Panning must move the merged diagram, not the panes hidden behind it.
+    const before = await readView(page, 'merged');
+    await page.mouse.move(600, 400);
+    await page.mouse.down();
+    await page.mouse.move(660, 430);
+    await page.mouse.up();
+    const after = await readView(page, 'merged');
+    check('dragging pans the merged diagram', after.x !== before.x || after.y !== before.y,
+      `${JSON.stringify(before)} -> ${JSON.stringify(after)}`);
+
+    // The fallback. A sequence diagram can't be graphed, and the mode must say so rather than
+    // showing an empty pane.
+    await compare(page, 'sequenceDiagram\n  A ->> B: hi', 'sequenceDiagram\n  A ->> B: hello');
+    await settle(page);
+    check('an undiffable pair falls back to both versions side by side',
+      (await page.isVisible('#left-viewport')) && (await page.isVisible('#right-viewport')));
+    check('and says why', await page.isVisible('#semantic-notice'));
+    check('with the legend put away', !(await page.isVisible('#semantic-legend')));
+    check('while the picker still shows what was asked for',
+      (await page.inputValue('#mode')) === 'semantic');
+    await page.screenshot({ path: path.join(shots, '10-semantic-fallback.png') });
+
+    // ...and back again, without needing the mode reselected.
+    await compare(page, SEMANTIC_BEFORE, SEMANTIC_AFTER);
+    await settle(page);
+    check('editing back to a flowchart restores the merged diagram',
+      (await page.isVisible('#merged-viewport')) && !(await page.isVisible('#semantic-notice')));
+
+    await page.selectOption('#mode', 'sideBySide');
+    await settle(page);
+    check('leaving semantic puts the two panes back',
+      (await page.isVisible('#left-viewport')) && !(await page.isVisible('#merged-viewport')));
+    check('and hides the legend', !(await page.isVisible('#semantic-legend')));
   }
 
   console.log('\nexport');

@@ -3,9 +3,19 @@ import { isBlankDiagram } from './diagram-source';
 import { composeComparison, type ExportSide } from './export-image';
 import { Box, computeFitView, dividerPercent, panBy, View, zoomAt } from './view-math';
 import { initialViewMode, isStacked, setMode, syncAvailable, toggleSync, ViewMode } from './view-mode';
+import { parseFlowchart } from './flowchart-parse';
+import { diffFlowcharts } from './flowchart-diff';
+import { mergeSource, type MergeColours } from './flowchart-merge';
 
 type Pane = 'left' | 'right';
 const PANES: Pane[] = ['left', 'right'];
+
+/**
+ * Everything that can be panned and zoomed. The merged diagram is a surface but not a *pane*: it
+ * holds neither version, so it takes no part in "fit both to the larger" or in the sync rules.
+ */
+type Surface = Pane | 'merged';
+const SURFACES: Surface[] = ['left', 'right', 'merged'];
 
 interface Side {
   label: string;
@@ -46,46 +56,61 @@ mermaid.initialize({
   securityLevel: 'strict',
 });
 
-// --- View state: one per pane, kept identical while Sync is on ---
-const views: Record<Pane, View> = {
+// --- View state: one per surface, kept identical across the two panes while Sync is on ---
+const views: Record<Surface, View> = {
   left: { x: 0, y: 0, scale: 1 },
   right: { x: 0, y: 0, scale: 1 },
+  merged: { x: 0, y: 0, scale: 1 },
 };
 /** Measured at scale 1 after each successful render; the input to fit. */
-const contentBoxes: Record<Pane, Box | undefined> = { left: undefined, right: undefined };
+const contentBoxes: Record<Surface, Box | undefined> = {
+  left: undefined,
+  right: undefined,
+  merged: undefined,
+};
 let viewMode = initialViewMode();
-let lastActive: Pane = 'left';
+let lastActive: Surface = 'left';
 
 /** `viewMode.synced` is the single source of truth; this reads as the old flag did. */
 const isSynced = (): boolean => viewMode.synced;
 
 function applyView(): void {
-  for (const pane of PANES) {
-    const { x, y, scale } = views[pane];
-    el(`${pane}-viewport`).style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+  for (const surface of SURFACES) {
+    const { x, y, scale } = views[surface];
+    el(`${surface}-viewport`).style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
   }
-  const percent = (pane: Pane): string => `${Math.round(views[pane].scale * 100)}%`;
+  const percent = (surface: Surface): string => `${Math.round(views[surface].scale * 100)}%`;
+
+  if (showingMerged()) {
+    el('zoom-level').textContent = percent('merged');
+    return;
+  }
   el('zoom-level').textContent = isSynced()
     ? percent('left')
     : `${percent('left')} / ${percent('right')}`;
 }
 
-/** Apply `change` to the pane that was interacted with — or to both, while synced. */
-function updateView(pane: Pane, change: (view: View) => View): void {
-  lastActive = pane;
+/** Apply `change` to the surface that was interacted with — or to both panes, while synced. */
+function updateView(surface: Surface, change: (view: View) => View): void {
+  lastActive = surface;
   userAdjusted = true;
-  if (isSynced()) {
-    const next = change(views[pane]);
+
+  // The merged diagram is on its own: syncing it to the panes would move a view the user can't
+  // even see, and be waiting for them when they leave the mode.
+  if (surface === 'merged') {
+    views.merged = change(views.merged);
+  } else if (isSynced()) {
+    const next = change(views[surface]);
     views.left = next;
     views.right = { ...next };
   } else {
-    views[pane] = change(views[pane]);
+    views[surface] = change(views[surface]);
   }
   applyView();
 }
 
-function paneSize(pane: Pane): Box {
-  const canvas = el(`${pane}-viewport`).parentElement!;
+function paneSize(surface: Surface): Box {
+  const canvas = el(`${surface}-viewport`).parentElement!;
   return { width: canvas.clientWidth, height: canvas.clientHeight };
 }
 
@@ -94,6 +119,13 @@ function paneSize(pane: Pane): Box {
  * so a shared scale still means "same size on screen" and the comparison stays honest.
  */
 function fitToView(): void {
+  // One diagram, one pane, nothing to reconcile.
+  if (showingMerged() && contentBoxes.merged) {
+    views.merged = computeFitView(contentBoxes.merged, paneSize('merged'));
+    applyView();
+    return;
+  }
+
   const boxes = PANES.map((pane) => contentBoxes[pane]).filter((box): box is Box => box !== undefined);
   if (boxes.length === 0) {
     return;
@@ -118,11 +150,11 @@ function fitToView(): void {
   applyView();
 }
 
-/** Zoom a pane about its own centre — what the buttons and keyboard use. */
+/** Zoom a surface about its own centre — what the buttons and keyboard use. */
 function zoomBy(factor: number): void {
-  const pane = isSynced() ? 'left' : lastActive;
-  const size = paneSize(pane);
-  updateView(pane, (view) => zoomAt(view, factor, { x: size.width / 2, y: size.height / 2 }));
+  const surface: Surface = showingMerged() ? 'merged' : isSynced() ? 'left' : lastActive;
+  const size = paneSize(surface);
+  updateView(surface, (view) => zoomAt(view, factor, { x: size.width / 2, y: size.height / 2 }));
 }
 
 // --- Rendering ---
@@ -214,6 +246,72 @@ async function renderPane(side: Pane, data: Side): Promise<void> {
   }
 }
 
+// --- Semantic diff ---
+
+/**
+ * `classDef` takes literal colours, not CSS variables, so the theme has to be resolved here. Dark
+ * themes get lighter hues: the same green that reads well on white disappears on a dark canvas.
+ */
+const SEMANTIC_COLOURS: MergeColours = isDark
+  ? { added: '#3fb950', removed: '#f85149', changed: '#d29922', text: '#e6edf3' }
+  : { added: '#1a7f37', removed: '#cf222e', changed: '#9a6700', text: '#1f2328' };
+
+// The legend reads the same values the diagram is drawn with, rather than keeping its own copy in
+// the stylesheet that would quietly drift from them.
+for (const [kind, colour] of Object.entries(SEMANTIC_COLOURS)) {
+  document.body.style.setProperty(`--semantic-${kind}`, colour);
+}
+
+/** True once a merged diagram is actually on screen — false while semantic has fallen back. */
+let semanticActive = false;
+const showingMerged = (): boolean => viewMode.mode === 'semantic' && semanticActive;
+
+/** The merged source last rendered, so an unrelated refresh doesn't relayout the diagram. */
+let mergedRendered: string | undefined;
+let hasGoodMerged = false;
+
+/**
+ * Render the two sides as one merged diagram. Returns false when they can't be diffed — a
+ * sequence diagram, a class diagram, or a source too broken to parse — which is the caller's cue
+ * to fall back to showing both versions.
+ *
+ * The sources come from `rendered`, which already holds exactly what each pane was last given.
+ */
+async function renderMerged(): Promise<boolean> {
+  const before = parseFlowchart(rendered.left ?? '');
+  const after = parseFlowchart(rendered.right ?? '');
+  if (!before || !after) {
+    return false;
+  }
+
+  const source = mergeSource(diffFlowcharts(before, after), after, SEMANTIC_COLOURS);
+  if (mergedRendered === source && hasGoodMerged) {
+    return true;
+  }
+  mergedRendered = source;
+
+  const viewport = el('merged-viewport');
+  const id = `mmd-merged-${Date.now()}`;
+
+  try {
+    const { svg } = await mermaid.render(id, source);
+    viewport.innerHTML = svg;
+    const svgEl = viewport.querySelector('svg');
+    if (svgEl) {
+      svgEl.style.maxWidth = 'none';
+      contentBoxes.merged = measure(svgEl);
+    }
+    hasGoodMerged = true;
+    return true;
+  } catch {
+    // Generated source that mermaid rejects is a bug here, not a mid-edit state — but it must not
+    // take the panel down with it, so it reads as "can't diff this" like any unsupported input.
+    document.getElementById(id)?.remove();
+    mergedRendered = undefined;
+    return hasGoodMerged;
+  }
+}
+
 window.addEventListener('message', async (event: MessageEvent<HostMessage>) => {
   const message = event.data;
   if (message.type === 'exportAs') {
@@ -226,6 +324,13 @@ window.addEventListener('message', async (event: MessageEvent<HostMessage>) => {
   el('doc-title').textContent = message.title;
   await Promise.all([renderPane('left', message.left), renderPane('right', message.right)]);
 
+  // An edit can turn a diffable pair into an undiffable one and back, so the fallback has to be
+  // re-decided on every message, not only when the mode is entered.
+  if (viewMode.mode === 'semantic') {
+    semanticActive = await renderMerged();
+    applyMode();
+  }
+
   // Open framed rather than at a hardcoded corner. Once the user has moved the view themselves,
   // a refresh must never yank it back.
   if (!userAdjusted) {
@@ -236,15 +341,15 @@ window.addEventListener('message', async (event: MessageEvent<HostMessage>) => {
 });
 
 // --- Pan (drag) ---
-let dragging: Pane | undefined;
+let dragging: Surface | undefined;
 let last = { x: 0, y: 0 };
 
-for (const pane of PANES) {
-  const canvas = el(`${pane}-viewport`).parentElement!;
+for (const surface of SURFACES) {
+  const canvas = el(`${surface}-viewport`).parentElement!;
 
   canvas.addEventListener('mousedown', (e) => {
-    dragging = pane;
-    lastActive = pane;
+    dragging = surface;
+    lastActive = surface;
     last = { x: e.clientX, y: e.clientY };
   });
 
@@ -256,7 +361,7 @@ for (const pane of PANES) {
       const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
       const rect = canvas.getBoundingClientRect();
       const anchor = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-      updateView(pane, (view) => zoomAt(view, factor, anchor));
+      updateView(surface, (view) => zoomAt(view, factor, anchor));
     },
     { passive: false }
   );
@@ -290,21 +395,34 @@ el('refresh').addEventListener('click', () => vscodeApi.postMessage({ type: 'ref
 function applyMode(): void {
   const { mode } = viewMode;
 
+  // Semantic that couldn't be applied lays out as side by side: the user still gets to see the two
+  // versions, with the notice saying why the diff isn't there. Everything below keys off the
+  // *layout*, not off the mode the picker is showing.
+  const layout: ViewMode = mode === 'semantic' && !semanticActive ? 'sideBySide' : mode;
+
   for (const id of ['panes', 'pane-headers']) {
     const classes = el(id).classList;
-    classes.toggle('stacked', isStacked(mode));
+    classes.toggle('stacked', isStacked(layout));
     for (const candidate of MODES) {
-      classes.toggle(candidate, candidate === mode);
+      classes.toggle(candidate, candidate === layout);
     }
   }
 
   (el('mode') as HTMLSelectElement).value = mode;
   el('opacity-control').hidden = mode !== 'overlay';
   el('blink-controls').hidden = mode !== 'blink';
+  el('semantic-legend').hidden = layout !== 'semantic';
   el('sync').setAttribute('aria-pressed', String(isSynced()));
   (el('sync') as HTMLButtonElement).disabled = !syncAvailable(viewMode);
 
-  if (isSynced()) {
+  const notice = el('semantic-notice');
+  notice.hidden = mode !== 'semantic' || semanticActive;
+  if (!notice.hidden) {
+    notice.textContent =
+      'Semantic diff reads flowcharts only — showing both versions side by side instead.';
+  }
+
+  if (isSynced() && lastActive !== 'merged') {
     views.left = { ...views[lastActive] };
     views.right = { ...views[lastActive] };
   }
@@ -312,15 +430,18 @@ function applyMode(): void {
 }
 
 /** Every mode doubles as its layout class, so a new one needs no extra wiring here. */
-const MODES: ViewMode[] = ['sideBySide', 'overlay', 'swipe', 'blink'];
+const MODES: ViewMode[] = ['sideBySide', 'overlay', 'swipe', 'blink', 'semantic'];
 
-const switchTo = (mode: ViewMode): void => {
+const switchTo = async (mode: ViewMode): Promise<void> => {
   // Someone who asked their OS for less motion gets a still frame and an explicit Resume, rather
   // than an animation that starts on its own. Seeded here rather than forced by a CSS media
   // query, which would also override that Resume and leave the button dead.
   if (mode === 'blink') {
     setBlinkPaused(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   }
+
+  // Built before the mode is applied, because whether it renders at all decides the layout.
+  semanticActive = mode === 'semantic' ? await renderMerged() : false;
 
   viewMode = setMode(viewMode, mode);
   applyMode();
@@ -338,7 +459,7 @@ el('sync').addEventListener('click', () => {
 });
 
 el('mode').addEventListener('change', (event) => {
-  switchTo((event.target as HTMLSelectElement).value as ViewMode);
+  void switchTo((event.target as HTMLSelectElement).value as ViewMode);
 });
 
 el('opacity').addEventListener('input', (event) => {
