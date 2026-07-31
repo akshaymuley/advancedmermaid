@@ -49,9 +49,24 @@ async function waitFor(
   assert.fail(`timed out after ${timeoutMs}ms waiting for ${description}`);
 }
 
+/**
+ * Close everything and wait until it has actually gone.
+ *
+ * A fixed pause used to stand in for this, and it was long enough on a developer machine and not
+ * on CI: a panel still finishing its disposal is still in the registry that decides whether the
+ * next comparison reveals an existing tab or opens a new one, so the next test inherited a
+ * half-closed panel and saw a duplicate that wasn't one.
+ */
 async function closeAllPanels(): Promise<void> {
   await vscode.commands.executeCommand('workbench.action.closeAllEditors');
-  await new Promise((resolve) => setTimeout(resolve, 200));
+  // Every tab, not just the compare ones. "Close all editors" drains asynchronously, and a close
+  // still in flight will take a panel created moments later with it — which is precisely how the
+  // restored panel used to vanish between being adopted and being looked up again.
+  await waitFor('every editor to close', () =>
+    vscode.window.tabGroups.all.every((group) => group.tabs.length === 0)
+  );
+  // The tab goes before `onDidDispose` runs, and it is that handler which frees the registry key.
+  await new Promise((resolve) => setTimeout(resolve, 500));
 }
 
 describe('advanced-mermaid in a real VS Code host', () => {
@@ -392,17 +407,31 @@ describe('advanced-mermaid in a real VS Code host', () => {
      * the collision `panel-key.ts` exists to prevent.
      */
     it('files the restored panel under its key, so the same comparison does not open twice', async () => {
+      // Starting from a clean slate matters here specifically: a panel left half-disposed by an
+      // earlier test is still holding this comparison's registry key, and the duplicate this
+      // test is looking for would be that, not the behaviour under test.
+      await closeAllPanels();
+
       await restoreComparison(extensionUri(), restoredPanel(), stateFor('pipeline.mmd'));
       await waitFor('the restored panel', () => openTabTitles().includes('Compare: pipeline.mmd'));
 
-      await vscode.commands.executeCommand(
-        'mermaidCompare.compareWithHead',
-        workspaceFile('samples', 'pipeline.mmd')
-      );
+      /**
+       * `compare` rather than the command, and the distinction is not cosmetic: this file is
+       * bundled, so it carries its **own copy** of the extension module — including the panel
+       * registry. Running the command instead would go through the extension host's separate
+       * copy, whose registry has never heard of the panel restored a line above, and the
+       * duplicate that produced would say nothing about the behaviour under test.
+       */
+      const uri = workspaceFile('samples', 'pipeline.mmd');
+      await compare(extensionUri(), fromRef(uri, 'HEAD'), fromTree(uri));
       await new Promise((resolve) => setTimeout(resolve, 500));
 
       const matching = openTabTitles().filter((title) => title === 'Compare: pipeline.mmd');
-      assert.strictEqual(matching.length, 1, `expected one panel, saw ${matching.length}`);
+      assert.strictEqual(
+        matching.length,
+        1,
+        `expected one panel, saw ${matching.length}: ${openTabTitles().join(' | ')}`
+      );
     });
 
     it('closes the panel rather than leaving it empty when the state means nothing', async () => {
