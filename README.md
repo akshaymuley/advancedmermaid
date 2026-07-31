@@ -19,6 +19,8 @@ Git diffs of Mermaid show text changes, but a one-line edit can completely rearr
   a few pixels is obvious superimposed and nearly invisible across a gap.
 - **Swipe mode** — the same two layers with a draggable divider instead: old on the left of it,
   new on the right. Drag it, or focus it and use the arrow keys.
+- **Blink mode** — alternate between the two in place. A node that shifted a few pixels becomes
+  obvious motion. Three speeds, and a Pause for when you want to stop and look.
 - Diagrams open **fitted** to their panes. Zoom with the wheel, the buttons, or `+`/`-`/`0`.
 - Pan & zoom stay **synced** across both panes — or unlock them to inspect each side on its own.
 - **Live** — the working-tree pane follows your edits as you type.
@@ -52,7 +54,12 @@ two versions can be flicked between in place — an onion skin. **Swipe** stacks
 but splits at a draggable divider: the old version left of it, the new version right of it. The
 divider takes the arrow keys once focused, `Shift` for bigger steps and `Home`/`End` for the edges.
 
-Both modes register the layers at their top-left corners and share a single pan and zoom, so
+**Blink** alternates between them instead, which is the one that catches small movements: a node
+that shifted a few pixels is hard to see faded and impossible to see across a gap, but obvious
+when it jumps. Three speeds, plus Pause to stop on the newer version. If your system asks for
+reduced motion, Blink starts paused and waits for you to press Resume.
+
+All three modes register the layers at their top-left corners and share a single pan and zoom, so
 anything that moved shows up as movement rather than as two diagrams drifting apart.
 
 ### Inspecting one side

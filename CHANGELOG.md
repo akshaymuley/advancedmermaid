@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Blink mode.** Alternates between the two versions in place, which is what catches a node that
+  moved only slightly — hard to see faded, impossible across a gap, obvious when it jumps. Three
+  speeds (the fastest is a 0.8s cycle, well under the flash threshold in WCAG 2.3.1) and a Pause
+  that stops on the newer version. Where the system asks for reduced motion it starts paused, so
+  nothing animates until you say so.
 - **Swipe mode.** The same two stacked layers split at a draggable divider — the old version left
   of it, the new version right of it. The divider is keyboard-operable once focused (arrows,
   `Shift` for bigger steps, `Home`/`End`), and stays put on screen while you pan and zoom.

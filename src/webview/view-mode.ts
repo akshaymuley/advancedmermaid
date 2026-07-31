@@ -3,7 +3,7 @@
  * DOM — so the one piece of real logic here is testable, the same extraction `view-math.ts`
  * makes for the pan/zoom arithmetic.
  */
-export type ViewMode = 'sideBySide' | 'overlay' | 'swipe';
+export type ViewMode = 'sideBySide' | 'overlay' | 'swipe' | 'blink';
 
 /** Whether the mode puts both renders in the same space, one on top of the other. */
 export const isStacked = (mode: ViewMode): boolean => mode !== 'sideBySide';

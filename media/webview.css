@@ -60,7 +60,8 @@ body {
   opacity: 0.7;
 }
 
-#mode {
+#mode,
+#blink-speed {
   background: var(--vscode-dropdown-background);
   color: var(--vscode-dropdown-foreground);
   border: 1px solid var(--vscode-dropdown-border, transparent);
@@ -172,6 +173,90 @@ body {
 /* Overlay reveals the upper layer by fading it. */
 #panes.overlay .pane[data-side='right'] .viewport {
   opacity: var(--overlay-opacity, 0.5);
+}
+
+/*
+ * Blink alternates between the two instead. A hard cut, not a crossfade: `steps(1, end)` swaps
+ * the layers outright, and anything smoother would blur the very movement the mode exists to
+ * show.
+ *
+ * An animation rather than a `setInterval`: removing the class ends it, so there is no timer to
+ * clear when the mode changes or the panel is disposed — and panels are kept alive while hidden
+ * (`retainContextWhenHidden`), where a stray timer would run forever.
+ *
+ * The slowest safe speed is the default. The fastest offered is a 0.8s cycle — 1.25Hz, well under
+ * the three-flashes-a-second threshold in WCAG 2.3.1.
+ */
+@keyframes blink-layer {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes blink-layer-inverse {
+  0% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+#panes.blink .pane[data-side='right'] .viewport {
+  animation: blink-layer var(--blink-duration, 1.6s) steps(1, end) infinite;
+}
+
+/*
+ * Paused shows the newer layer whole — a predictable still, rather than whichever frame of the
+ * cycle the user happened to stop on.
+ *
+ * The animation is *removed*, not `animation-play-state: paused`. A paused animation still
+ * applies its current keyframe, and keyframe values outrank normal declarations, so a plain
+ * `opacity: 1` beside it silently loses and the pane freezes blank half the time. Dropping the
+ * animation lets the base value apply, and Resume then restarts from the newer version rather
+ * than from wherever the cycle happened to stop.
+ */
+#panes.blink.paused .pane[data-side='right'] .viewport {
+  animation: none;
+}
+
+/*
+ * The legend has to alternate too: unlike the other stacked modes, which version is on screen
+ * changes twice a cycle, so a fixed label would be wrong half the time. Same duration, and both
+ * animations start in the frame the class is applied, which is what keeps them in step.
+ */
+#pane-headers.blink header[data-side='left'] {
+  animation: blink-layer-inverse var(--blink-duration, 1.6s) steps(1, end) infinite;
+}
+
+#pane-headers.blink header[data-side='right'] {
+  animation: blink-layer var(--blink-duration, 1.6s) steps(1, end) infinite;
+}
+
+/* Frozen on the newer version, so the legend has to say exactly that. */
+#pane-headers.blink.paused header {
+  animation: none;
+}
+
+#pane-headers.blink.paused header[data-side='left'] {
+  opacity: 0.35;
+}
+
+#pane-headers.blink.paused header[data-side='right'] {
+  opacity: 1;
+}
+
+#blink-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#blink-controls[hidden] {
+  display: none;
 }
 
 /*

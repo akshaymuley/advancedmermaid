@@ -363,6 +363,88 @@ async function main() {
       (await page.getAttribute('#sync', 'aria-pressed')) === 'true');
   }
 
+  console.log('\nblink mode');
+  {
+    /**
+     * Sample the upper layer's opacity across more than a full cycle. A declared animation and a
+     * *running* one look identical in the stylesheet; only the values over time tell them apart.
+     */
+    const opacitiesOverTime = async (samples = 12, gapMs = 120) => {
+      const seen = new Set();
+      for (let i = 0; i < samples; i++) {
+        seen.add(
+          await page.evaluate(
+            () => getComputedStyle(document.getElementById('right-viewport')).opacity
+          )
+        );
+        await page.waitForTimeout(gapMs);
+      }
+      return [...seen].sort();
+    };
+    const animation = (selector, property) =>
+      page.evaluate(([s, p]) => getComputedStyle(document.querySelector(s))[p], [selector, property]);
+
+    await page.selectOption('#mode', 'blink');
+    await page.selectOption('#blink-speed', '0.8s');
+    await settle(page);
+
+    check('selecting Blink shows its controls', await page.isVisible('#blink-controls'));
+    check('and leaves the other modes\' controls alone',
+      !(await page.isVisible('#opacity')) && !(await page.isVisible('#swipe-handle')));
+    check('the panes stack', await page.evaluate(() => {
+      const box = (s) => document.querySelector(`.pane[data-side="${s}"] .canvas`).getBoundingClientRect();
+      return Math.abs(box('left').left - box('right').left) < 1;
+    }));
+    check('the speed picker drives the cycle length',
+      (await animation('#right-viewport', 'animationDuration')) === '0.8s',
+      await animation('#right-viewport', 'animationDuration'));
+    await page.screenshot({ path: path.join(shots, '8-blink.png') });
+
+    const running = await opacitiesOverTime();
+    check('the layers actually alternate', running.length > 1, running.join(', '));
+    check('and swap outright rather than fading through', running.every((v) => v === '0' || v === '1'),
+      running.join(', '));
+
+    const headers = await animation('#pane-headers header[data-side="left"]', 'animationName');
+    check('the legend alternates with them, so it never names the wrong version',
+      headers !== 'none', headers);
+
+    await page.click('#blink-pause');
+    await settle(page);
+    const paused = await opacitiesOverTime(6);
+    check('Pause stops it', paused.length === 1, paused.join(', '));
+    check('and leaves the newer version whole rather than mid-cycle', paused[0] === '1', paused[0]);
+    check('the button says how to undo itself', (await page.textContent('#blink-pause')) === 'Resume');
+
+    await page.click('#blink-pause');
+    await settle(page);
+    check('Resume starts it again', (await opacitiesOverTime()).length > 1);
+
+    // Reduced motion: the preference must be honoured on entry without disabling the mode.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.selectOption('#mode', 'sideBySide');
+    await page.selectOption('#mode', 'blink');
+    await settle(page);
+    check('reduced motion starts blink paused rather than animating unasked',
+      (await page.getAttribute('#blink-pause', 'aria-pressed')) === 'true');
+    check('and it really is still', (await opacitiesOverTime(6)).length === 1);
+
+    await page.click('#blink-pause');
+    await settle(page);
+    check('but opting in still works — the preference seeds the state, it does not veto it',
+      (await opacitiesOverTime()).length > 1);
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+
+    await page.selectOption('#mode', 'sideBySide');
+    await settle(page);
+    check('leaving blink stops the animation',
+      (await animation('#right-viewport', 'animationName')) === 'none',
+      await animation('#right-viewport', 'animationName'));
+    check('and hides its controls', !(await page.isVisible('#blink-controls')));
+    check('and gives back the sync setting',
+      (await page.getAttribute('#sync', 'aria-pressed')) === 'true');
+  }
+
   console.log('\nhost messages');
   {
     const posted = await page.evaluate(() => window.__posted);

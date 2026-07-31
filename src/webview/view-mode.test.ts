@@ -82,6 +82,26 @@ describe('view mode', () => {
     expect(isStacked('sideBySide')).toBe(false);
     expect(isStacked('overlay')).toBe(true);
     expect(isStacked('swipe')).toBe(true);
+    expect(isStacked('blink')).toBe(true);
+  });
+
+  it('forces sync on for blink too', () => {
+    expect(setMode(state({ synced: false, remembered: false }), 'blink')).toEqual({
+      mode: 'blink',
+      synced: true,
+      remembered: false,
+    });
+  });
+
+  it('carries the sync setting through every stacked mode in turn', () => {
+    // Each new mode is another way to slip past the "same mode is a no-op" guard.
+    const unsynced = state({ synced: false, remembered: false });
+    const wandered = ['overlay', 'blink', 'swipe', 'blink'].reduce(
+      (acc, mode) => setMode(acc, mode as ViewModeState['mode']),
+      unsynced
+    );
+
+    expect(setMode(wandered, 'sideBySide')).toEqual(unsynced);
   });
 
   it('forces sync on for swipe, as for overlay', () => {
