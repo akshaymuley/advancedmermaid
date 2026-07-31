@@ -50,10 +50,23 @@ const isDark =
   document.body.classList.contains('vscode-dark') ||
   document.body.classList.contains('vscode-high-contrast');
 
+/**
+ * The editor's own UI font, **resolved** rather than passed through as `var(--vscode-font-family)`.
+ *
+ * Mermaid drops whatever this is into the stylesheet it injects, which a CSS variable would satisfy
+ * on screen — and then break on export, where the SVG is written to a file with nothing to resolve
+ * the variable against and the text falls back to a default serif. Reading the computed value here
+ * hands mermaid real font names that survive leaving the webview.
+ */
+const uiFont = getComputedStyle(document.body).fontFamily;
+
 mermaid.initialize({
   startOnLoad: false,
   theme: isDark ? 'dark' : 'default',
   securityLevel: 'strict',
+  // Without this, diagrams render in mermaid's default Trebuchet MS while the panel around them
+  // uses the editor's font — two typefaces a few pixels apart.
+  ...(uiFont ? { fontFamily: uiFont } : {}),
 });
 
 // --- View state: one per surface, kept identical across the two panes while Sync is on ---

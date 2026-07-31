@@ -96,6 +96,20 @@ async function main() {
       const fit = await fitsInPane(page, side);
       check(`the ${side} diagram is wholly inside its pane`, fit.ok, fit.reason);
     }
+
+    // Mermaid's default is Trebuchet MS, which sat a few pixels from a panel drawn in the editor's
+    // own font for five releases. Only a real render can say which font actually applied.
+    const fonts = await page.evaluate(() => ({
+      label: getComputedStyle(document.querySelector('#left-viewport .nodeLabel')).fontFamily,
+      panel: getComputedStyle(document.body).fontFamily,
+    }));
+    check('the diagram is drawn in the editor font, not mermaid\'s own',
+      fonts.label === fonts.panel, `${fonts.label} vs ${fonts.panel}`);
+    // A CSS variable would satisfy the check above and still export as a default serif, since an
+    // exported SVG has nothing to resolve it against.
+    check('and that font is resolved, so it survives being exported',
+      !fonts.label.includes('var('), fonts.label);
+
     await page.screenshot({ path: path.join(shots, '1-first-render-fit.png') });
   }
 
@@ -600,6 +614,12 @@ async function main() {
     }, svgExport.data);
     check('on a background matching the theme, not a hardcoded white',
       background === 'rgb(30, 30, 30)' || background === '#1e1e1e', background);
+
+    // The other half of the font trap: the export leaves the webview, so a `var(--vscode-...)`
+    // reference in the markup would resolve to nothing and the text would come out as a serif.
+    check('carrying real font names rather than a variable nothing can resolve',
+      /font-family:[^;}]+/.test(svgExport.data) && !svgExport.data.includes('var(--vscode-font'),
+      (svgExport.data.match(/font-family:[^;}]+/) ?? ['none'])[0]);
 
     const pngExport = await askFor('png');
     const png = Buffer.from(pngExport?.data ?? '', 'base64');
