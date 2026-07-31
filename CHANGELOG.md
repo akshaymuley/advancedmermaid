@@ -38,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Comparing too soon after opening a window could report "not a git repository"** for a file
+  that is plainly tracked. The built-in Git extension discovers repositories asynchronously and
+  answers "none" until it has finished looking; that answer is now only believed once it says the
+  scan is complete. The error was self-correcting a second later, which made it look random.
 - **Comparing a file that doesn't exist at the ref opened nothing at all.** Adding a brand-new
   diagram and comparing it against HEAD is meant to show empty-versus-new, but the built-in Git
   extension resolves the path against the ref's tree itself and reports "relative path not

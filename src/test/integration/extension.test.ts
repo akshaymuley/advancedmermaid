@@ -95,6 +95,28 @@ describe('advanced-mermaid in a real VS Code host', () => {
   });
 
   /**
+   * `git.ts` waits on these two before believing "no repository", because discovery is
+   * asynchronous and a plainly tracked file reports nothing for a moment after a window opens.
+   * The unit tests drive a fake API, so they would go on passing if the real one ever dropped
+   * them — leaving the wait silently doing nothing. Only a real host can check the shape.
+   */
+  it('exposes the discovery state the repository lookup waits on', async () => {
+    const git = vscode.extensions.getExtension('vscode.git');
+    assert.ok(git, 'the built-in git extension should be present');
+    const api = (git.isActive ? git.exports : await git.activate()).getAPI(1);
+
+    assert.strictEqual(
+      typeof api.onDidChangeState,
+      'function',
+      'the git API should still announce state changes'
+    );
+    assert.ok(
+      api.state === 'initialized' || api.state === 'uninitialized',
+      `unexpected git API state: ${JSON.stringify(api.state)}`
+    );
+  });
+
+  /**
    * The strongest assertion available: the panel title is only set once the webview has posted
    * `ready`, so reaching it proves the panel opened, the CSP permitted the bundled script, the
    * dist/ resource URI resolved inside the webview, and the message round trip works.
