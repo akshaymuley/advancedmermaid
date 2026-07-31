@@ -4,13 +4,17 @@ Iterative delivery plan for the extension. Each milestone is independently shipp
 it ends with a working `.vsix` and a version bump. Order is deliberate — earlier
 milestones remove friction that later ones would otherwise pay repeatedly.
 
-**Status:** v1.0.1 published as **Advanced Mermaid** (`AkshayDMuley.advanced-mermaid`). Seven
-entries sit in `[Unreleased]` awaiting a v1.1.0 release. Renders two diagrams side-by-side, opens
-framed, follows edits to whichever files it is showing, and reports git failures by kind. Panes
-pan/zoom together or independently, and each comparison gets its own tab. Each pane names its own
-file, diagram, and version, so a comparison can span two refs or two files. Milestones 1–5
-complete. v1.1.0 is code-complete but **held**: Open VSX registration must land before it is
-tagged (see Known gaps), so Milestone 6 starts first.
+**Status:** v1.0.1 published as **Advanced Mermaid** (`AkshayDMuley.advanced-mermaid`). Renders two
+diagrams side-by-side, opens framed, follows edits to whichever files it is showing, and reports git
+failures by kind. Panes pan/zoom together or independently, and each comparison gets its own tab.
+Each pane names its own file, diagram, and version, so a comparison can span two refs or two files.
+The two versions can also be stacked — faded, split at a divider, or blinked between — and exported
+side by side as SVG or PNG. **Milestones 1–6 complete.**
+
+Everything since v1.0.1 sits in `[Unreleased]` — two milestones' worth, since nothing has been
+tagged in between. Whether that ships as one version or as v1.1.0 followed by v1.2.0 is a decision
+for release time; either way it is **held** on Open VSX registration (see Known gaps). Milestone 7
+is next.
 
 ---
 
@@ -21,15 +25,16 @@ tagged (see Known gaps), so Milestone 6 starts first.
 | `src/extension.ts` | 380 | Four commands, fence/ref/file pickers, side resolution, `compare` orchestration |
 | `src/git.ts` | 109 | Reads a file at a ref and lists refs; waits out repository discovery; throws a classified `GitFailureError` |
 | `src/git-errors.ts` | 73 | Pure failure classification + user-facing messages |
-| `src/comparePanel.ts` | 225 | Webview panel registry, CSP shell, per-side edit tracking + refresh |
+| `src/comparePanel.ts` | 305 | Webview panel registry, CSP shell, per-side edit tracking, refresh, export round trip |
 | `src/debounce.ts` | 45 | Pure debounce with `cancel()` / `flush()` |
-| `src/webview/main.ts` | 429 | Mermaid render, per-pane pan/zoom, mode/divider/blink wiring, last-good-render fallback |
+| `src/webview/main.ts` | 517 | Mermaid render, pan/zoom, mode/divider/blink wiring, export composition + rasterise |
 | `src/webview/view-math.ts` | 93 | Pure fit / zoom-anchor / clamp maths + `dividerPercent` |
-| `src/webview/panel-body.ts` | 60 | The panel DOM, shared by the real panel and the harness |
+| `src/webview/panel-body.ts` | 61 | The panel DOM, shared by the real panel and the harness |
 | `src/webview/view-mode.ts` | 63 | Pure comparison-mode state and its sync interaction |
+| `src/webview/export-image.ts` | 103 | Pure SVG composition of the two diagrams for export |
 | `src/webview/diagram-source.ts` | 7 | `isBlankDiagram()` |
 | `src/test/harness/main.ts` | 61 | Boots the webview outside VS Code for Playwright |
-| `scripts/verify-view.mjs` | 469 | `npm run verify:view` — 85 browser checks + screenshots |
+| `scripts/verify-view.mjs` | 531 | `npm run verify:view` — 94 browser checks + screenshots |
 | `scripts/make-vscode-screenshots.mjs` | 254 | Captures `docs/images/` from a real VS Code over CDP |
 | `src/test/screenshots/driver.ts` | 67 | Sequences the panel states for that capture, in-host |
 | `src/mermaid-file.ts` | 28 | `classifySource()` — pure file-type guard (mermaid vs markdown) |
@@ -40,6 +45,7 @@ tagged (see Known gaps), so Milestone 6 starts first.
 | `src/panel-title.ts` | 78 | Pure tab-title rules + `fileLabels` disambiguation |
 | `src/ref-list.ts` | 46 | Pure ordering/dedup of branch and tag choices |
 | `src/file-list.ts` | 60 | Pure ordering/dedup of the other-file choices + `excludeGlob` |
+| `src/export-file.ts` | 37 | Pure export file naming and format-from-extension |
 | `src/test/vscode-mock.ts` | 75 | Shared `vscode` module mock (aliased in `vitest.config.ts`) |
 
 Build is esbuild (two bundles: node CJS extension + IIFE browser webview).
@@ -59,7 +65,8 @@ CI runs `typecheck` + `test` + `build` on every PR. `main` is PR-protected.
 - **Open VSX is still unregistered, and it gates the next version bump.** No `OVSX_PAT` secret
   exists and the `AkshayDMuley` namespace returns 404, so the release workflow's Open VSX step has
   silently skipped on every tag so far. Registration is blocked on Eclipse account creation as of
-  2026-07-31. This is a **hard prerequisite for tagging v1.1.0**, not a nice-to-have: Open VSX does
+  2026-07-31. This is a **hard prerequisite for the next tag, whatever it is numbered**, not a
+  nice-to-have: Open VSX does
   not backfill, so any version tagged before the secret exists can never appear there, and a
   version number can never be republished. Steps and the `ovsx verify-pat` check are in
   `RELEASING.md`; the two silent failures are the Eclipse account's GitHub Username field and the
@@ -283,7 +290,26 @@ Split in two: everything *up to* the tag, then the publish itself.
       WCAG 2.3.1; a unit test pins that no faster option can be added by accident.
       The legend animates in antiphase with the layers, since unlike the other stacked modes there
       is no static answer to which version is on screen.
-- [ ] **Export comparison as PNG/SVG.**
+- [x] **Export comparison as PNG/SVG.** The first feature that leaves the webview: compose, hand
+      back to the host, write a file. `src/webview/export-image.ts` is the pure core — both
+      diagrams nested in one SVG under their labels, at natural size.
+      **Deliberately not a screenshot.** The export is the comparison, so it ignores pan, zoom and
+      the current mode; blink has no still frame to capture anyway, and the alternative meant three
+      composition paths for no gain.
+      *Two assumptions probed before building, both wrong:* mermaid's flowchart labels **are**
+      `<foreignObject>`, but current Chromium rasterises them into a canvas without tainting it —
+      so no `htmlLabels: false`, and on-screen rendering was left alone. Ten minutes of probing
+      against a real render, in the same spirit as the `state.refs` and git-wording lessons above.
+      *One that only the harness could catch:* the first version recovered the image size from the
+      composed markup with `width="(\d+)"`, which silently fails on a diagram measuring
+      `1866.28125` wide — the PNG came out **1×1**. `composeComparison` now returns its dimensions
+      rather than leaving them to be parsed back out.
+      The background is painted, not left transparent: a dark-theme render is light text, which
+      disappears the moment a viewer composites it onto white.
+      `showSaveDialog` is a native OS dialog outside the renderer, so **no automation here can
+      complete the flow** — the seam is `writeExport`, exported so an integration test proves the
+      bytes reaching disk in a real host for both formats. Everything before it is covered by the
+      browser harness; the click itself is the one genuinely manual step in the project.
 
 ## Milestone 7 — Semantic diff (v2.0.0)
 

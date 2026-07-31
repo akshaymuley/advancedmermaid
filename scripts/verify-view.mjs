@@ -445,6 +445,78 @@ async function main() {
       (await page.getAttribute('#sync', 'aria-pressed')) === 'true');
   }
 
+  console.log('\nexport');
+  {
+    // Two different diagrams, so a composition that dropped or duplicated a side would show.
+    await compare(page, VALID, WIDE);
+    await settle(page);
+
+    const lastPosted = (type) =>
+      page.evaluate((t) => [...window.__posted].reverse().find((m) => m.type === t), type);
+    const askFor = async (format) => {
+      await page.evaluate((f) => {
+        window.dispatchEvent(new MessageEvent('message', { data: { type: 'exportAs', format: f } }));
+      }, format);
+      await page.waitForTimeout(600);
+      return lastPosted('exportData');
+    };
+
+    await page.click('#export');
+    check('Export asks the host where to put it, rather than guessing',
+      (await lastPosted('export')) !== undefined);
+
+    const svgExport = await askFor('svg');
+    check('the host gets SVG back when the dialog settled on SVG',
+      svgExport?.format === 'svg' && svgExport.data.startsWith('<svg'),
+      JSON.stringify(svgExport?.data ?? '').slice(0, 60));
+
+    const parsed = await page.evaluate((markup) => {
+      const doc = new DOMParser().parseFromString(markup, 'image/svg+xml');
+      const root = doc.documentElement;
+      return {
+        error: !!doc.querySelector('parsererror'),
+        nested: [...root.children].filter((c) => c.tagName === 'svg').length,
+        text: root.textContent,
+        width: Number(root.getAttribute('width')),
+        height: Number(root.getAttribute('height')),
+      };
+    }, svgExport.data);
+
+    check('the exported SVG parses', !parsed.error);
+    check('and holds both diagrams', parsed.nested === 2, `nested svg: ${parsed.nested}`);
+    check('and names both sides, so the image says what it compares',
+      parsed.text.includes('HEAD') && parsed.text.includes('Working Tree'));
+    check('at a size that fits them both', parsed.width > 200 && parsed.height > 50,
+      `${parsed.width}x${parsed.height}`);
+
+    // A dark render exported onto a white background is light text on white — invisible. The
+    // first version fell back to white whenever the theme variable was missing, which is how
+    // this check came to exist.
+    const background = await page.evaluate((markup) => {
+      const doc = new DOMParser().parseFromString(markup, 'image/svg+xml');
+      return doc.querySelector('rect')?.getAttribute('fill');
+    }, svgExport.data);
+    check('on a background matching the theme, not a hardcoded white',
+      background === 'rgb(30, 30, 30)' || background === '#1e1e1e', background);
+
+    const pngExport = await askFor('png');
+    const png = Buffer.from(pngExport?.data ?? '', 'base64');
+    const isPng = png.subarray(1, 4).toString() === 'PNG';
+    check('the host gets PNG bytes back when the dialog settled on PNG',
+      pngExport?.format === 'png' && isPng, png.subarray(0, 8).toString('hex'));
+
+    // The rasterisation is the part that can silently produce a blank image: mermaid's flowchart
+    // labels are `<foreignObject>`, which some engines refuse to draw into a canvas.
+    // Rounded, because a diagram's natural width is routinely fractional — 1866.28125 doubles to
+    // 3732.5625, and a canvas is whole pixels.
+    check('rasterised at 2x, so it survives being scaled down',
+      png.readUInt32BE(16) === Math.round(parsed.width * 2) &&
+        png.readUInt32BE(20) === Math.round(parsed.height * 2),
+      `${png.readUInt32BE(16)}x${png.readUInt32BE(20)} vs svg ${parsed.width}x${parsed.height}`);
+    check('and carries real image data rather than an empty canvas', png.length > 2000,
+      `${png.length} bytes`);
+  }
+
   console.log('\nhost messages');
   {
     const posted = await page.evaluate(() => window.__posted);

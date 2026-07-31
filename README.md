@@ -21,6 +21,8 @@ Git diffs of Mermaid show text changes, but a one-line edit can completely rearr
   new on the right. Drag it, or focus it and use the arrow keys.
 - **Blink mode** — alternate between the two in place. A node that shifted a few pixels becomes
   obvious motion. Three speeds, and a Pause for when you want to stop and look.
+- **Export** the comparison as SVG or PNG — both diagrams side by side, labelled, ready to paste
+  into a pull request or an issue.
 - Diagrams open **fitted** to their panes. Zoom with the wheel, the buttons, or `+`/`-`/`0`.
 - Pan & zoom stay **synced** across both panes — or unlock them to inspect each side on its own.
 - **Live** — the working-tree pane follows your edits as you type.
@@ -61,6 +63,14 @@ reduced motion, Blink starts paused and waits for you to press Resume.
 
 All three modes register the layers at their top-left corners and share a single pan and zoom, so
 anything that moved shows up as movement rather than as two diagrams drifting apart.
+
+### Exporting
+
+**Export…** writes both diagrams side by side, under their pane labels, as a single image. Pick a
+`.svg` or `.png` name in the save dialog — the extension you choose decides the format. The export
+is the *comparison*, not the current view: it ignores pan, zoom and the mode you happen to be in,
+and always lays the two versions out side by side at their natural size, on a background matching
+your theme.
 
 ### Inspecting one side
 
