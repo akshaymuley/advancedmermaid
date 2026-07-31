@@ -17,6 +17,8 @@ Git diffs of Mermaid show text changes, but a one-line edit can completely rearr
 - SCM view integration — right-click a changed file in the Source Control panel.
 - **Overlay mode** — stack the two renders and fade between them with a slider. A node that moved
   a few pixels is obvious superimposed and nearly invisible across a gap.
+- **Swipe mode** — the same two layers with a draggable divider instead: old on the left of it,
+  new on the right. Drag it, or focus it and use the arrow keys.
 - Diagrams open **fitted** to their panes. Zoom with the wheel, the buttons, or `+`/`-`/`0`.
 - Pan & zoom stay **synced** across both panes — or unlock them to inspect each side on its own.
 - **Live** — the working-tree pane follows your edits as you type.
@@ -41,12 +43,17 @@ header instead of blanking the pane.
 
 ![A mid-edit diagram holding its previous render with an error badge in the pane header](https://raw.githubusercontent.com/akshaymuley/AdvancedMermaid/main/docs/images/live-edit.png)
 
-### Overlaying the two
+### Comparing in place
+
+The mode picker in the toolbar chooses how the two versions are shown.
 
 **Overlay** stacks both renders in one canvas and the slider fades the upper (newer) one, so the
-two versions can be flicked between in place — an onion skin. The layers register at their
-top-left corners and share a single pan and zoom, so anything that moved shows up as movement
-rather than as two diagrams drifting apart.
+two versions can be flicked between in place — an onion skin. **Swipe** stacks them the same way
+but splits at a draggable divider: the old version left of it, the new version right of it. The
+divider takes the arrow keys once focused, `Shift` for bigger steps and `Home`/`End` for the edges.
+
+Both modes register the layers at their top-left corners and share a single pan and zoom, so
+anything that moved shows up as movement rather than as two diagrams drifting apart.
 
 ### Inspecting one side
 

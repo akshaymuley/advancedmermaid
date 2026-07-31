@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   clampScale,
   computeFitView,
+  dividerPercent,
   MAX_SCALE,
   MIN_SCALE,
   panBy,
@@ -133,5 +134,31 @@ describe('computeFitView', () => {
       y: 24,
       scale: 1,
     });
+  });
+});
+
+describe('dividerPercent', () => {
+  const rect = { left: 100, width: 400 };
+
+  it('reports where in the pane the pointer is', () => {
+    expect(dividerPercent(300, rect)).toBe(50);
+    expect(dividerPercent(200, rect)).toBe(25);
+  });
+
+  it('pins to the edges rather than overshooting', () => {
+    // A drag continues outside the panel; 140% would clip the layer away entirely and leave the
+    // handle stranded off screen.
+    expect(dividerPercent(900, rect)).toBe(100);
+    expect(dividerPercent(-50, rect)).toBe(0);
+  });
+
+  it('reports the edges exactly', () => {
+    expect(dividerPercent(100, rect)).toBe(0);
+    expect(dividerPercent(500, rect)).toBe(100);
+  });
+
+  it('survives a pane with no width instead of returning NaN', () => {
+    // Happens if a drag begins in the frame where the panel is still laying out.
+    expect(dividerPercent(100, { left: 100, width: 0 })).toBe(50);
   });
 });

@@ -221,10 +221,10 @@ async function main() {
     await page.click('#sync');
     check('sync is off before overlaying', (await page.getAttribute('#sync', 'aria-pressed')) === 'false');
 
-    await page.click('#overlay');
+    await page.selectOption('#mode', 'overlay');
     await settle(page);
 
-    check('Overlay reads as pressed', (await page.getAttribute('#overlay', 'aria-pressed')) === 'true');
+    check('the mode picker holds the selection', (await page.inputValue('#mode')) === 'overlay');
     check('the opacity slider appears with it', await page.isVisible('#opacity'));
 
     const stacked = await page.evaluate(() => {
@@ -260,7 +260,7 @@ async function main() {
     }
     await page.screenshot({ path: path.join(shots, '6-overlay.png') });
 
-    await page.click('#overlay');
+    await page.selectOption('#mode', 'sideBySide');
     await settle(page);
     check('leaving overlay restores two panes', !(await page.evaluate(() => {
       const box = (side) =>
@@ -273,6 +273,94 @@ async function main() {
     check('and re-enables the control', !(await page.isDisabled('#sync')));
 
     await page.click('#sync'); // Leave the panes synced for anything that follows.
+  }
+
+  console.log('\nswipe mode');
+  {
+    const dividerScreenX = () =>
+      page.evaluate(() => document.getElementById('swipe-handle').getBoundingClientRect().left);
+    const clipOf = (side) =>
+      page.evaluate(
+        (s) => getComputedStyle(document.querySelector(`.pane[data-side="${s}"] .canvas`)).clipPath,
+        side
+      );
+
+    check('the divider is out of the way side by side', !(await page.isVisible('#swipe-handle')));
+
+    await page.selectOption('#mode', 'swipe');
+    await settle(page);
+    check('selecting Swipe shows the divider', await page.isVisible('#swipe-handle'));
+    check('the panes stack', await page.evaluate(() => {
+      const box = (s) => document.querySelector(`.pane[data-side="${s}"] .canvas`).getBoundingClientRect();
+      return Math.abs(box('left').left - box('right').left) < 1;
+    }));
+    check('the upper layer is clipped at the divider', (await clipOf('right')).includes('inset'),
+      await clipOf('right'));
+    check('the lower layer is not clipped', !(await clipOf('left')).includes('inset'),
+      await clipOf('left'));
+    check('no opacity slider in swipe — the divider is the control',
+      !(await page.isVisible('#opacity')));
+    await page.screenshot({ path: path.join(shots, '7-swipe.png') });
+
+    // Drag the handle a quarter of the way left.
+    const panes = await page.evaluate(() => {
+      const r = document.getElementById('panes').getBoundingClientRect();
+      return { left: r.left, top: r.top, width: r.width, height: r.height };
+    });
+    const before = await dividerScreenX();
+    await page.mouse.move(before + 5, panes.top + panes.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(panes.left + panes.width * 0.25, panes.top + panes.height / 2, { steps: 8 });
+    await page.mouse.up();
+    await settle(page);
+
+    const dragged = await dividerScreenX();
+    check('dragging moves the divider', Math.abs(dragged - before) > 50, `${before} -> ${dragged}`);
+    // Computed `clip-path` keeps the percentage rather than resolving it to pixels, so compare
+    // in the units it actually reports.
+    const clipPercent = async () =>
+      Number((await clipOf('right')).match(/inset\(0px 0px 0px ([\d.]+)%\)/)?.[1] ?? -1);
+    const asPercent = (screenX) => ((screenX + 5 - panes.left) / panes.width) * 100;
+
+    check('and the clip follows it', near(await clipPercent(), asPercent(dragged), 1.5),
+      `clip=${await clipOf('right')} handle=${asPercent(dragged).toFixed(1)}%`);
+
+    const panned = await readView(page, 'left');
+    check('dragging the divider does not pan the diagram underneath',
+      JSON.stringify(panned) === JSON.stringify(await readView(page, 'right')));
+
+    // The check this whole design hinges on: clip the transformed viewport instead of the
+    // untransformed canvas and the divider drifts the moment anyone zooms.
+    const heldAt = await dividerScreenX();
+    await page.click('#zoom-in');
+    await page.click('#zoom-in');
+    await settle(page);
+    check('the divider stays put when the diagrams zoom',
+      near(await dividerScreenX(), heldAt, 1), `${heldAt} -> ${await dividerScreenX()}`);
+    check('and the clip stays with it', near(await clipPercent(), asPercent(heldAt), 1.5),
+      `clip=${await clipOf('right')} handle=${asPercent(heldAt).toFixed(1)}%`);
+
+    await page.focus('#swipe-handle');
+    const beforeKeys = await dividerScreenX();
+    await page.keyboard.press('ArrowRight');
+    check('arrow keys nudge the divider', (await dividerScreenX()) > beforeKeys);
+    await page.keyboard.press('Home');
+    check('Home pins it to the left edge',
+      near(await dividerScreenX(), panes.left - 5, 2), `${await dividerScreenX()} vs ${panes.left}`);
+    await page.keyboard.press('End');
+    check('End pins it to the right edge',
+      near(await dividerScreenX(), panes.left + panes.width - 5, 2));
+    await page.keyboard.press('ArrowRight');
+    check('and it does not overshoot the edge',
+      near(await dividerScreenX(), panes.left + panes.width - 5, 2));
+
+    await page.selectOption('#mode', 'sideBySide');
+    await settle(page);
+    check('leaving swipe hides the divider', !(await page.isVisible('#swipe-handle')));
+    check('and unclips the upper layer', !(await clipOf('right')).includes('inset'),
+      await clipOf('right'));
+    check('and gives back the sync setting borrowed by the stacked modes',
+      (await page.getAttribute('#sync', 'aria-pressed')) === 'true');
   }
 
   console.log('\nhost messages');

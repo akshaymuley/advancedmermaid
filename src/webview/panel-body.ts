@@ -4,8 +4,13 @@
  * about the extension if it renders the extension's actual markup.
  *
  * The two pane labels live in one `#pane-headers` row rather than inside their panes. Side by
- * side that reads identically — two half-width cells above two half-width canvases — but overlay
- * stacks the canvases, and two headers stacked on top of each other would be unreadable.
+ * side that reads identically — two half-width cells above two half-width canvases — but the
+ * stacked modes put the canvases on top of each other, where two stacked headers would be
+ * unreadable.
+ *
+ * `#swipe-handle` is always present and shown by CSS only in swipe mode, rather than toggled with
+ * the `hidden` attribute: an author `display` rule beats the UA stylesheet's `[hidden]`, which is
+ * a trap this file has already sprung once.
  *
  * No `<script>` here — the panel injects one with a nonce, and the harness loads its own bundle.
  */
@@ -16,7 +21,11 @@ export const PANEL_BODY_HTML = `<div id="toolbar">
     <button id="zoom-out" title="Zoom out (-)">&minus;</button>
     <span id="zoom-level">100%</span>
     <button id="zoom-in" title="Zoom in (+)">+</button>
-    <button id="overlay" aria-pressed="false" title="Stack both diagrams and fade between them">Overlay</button>
+    <select id="mode" aria-label="Comparison mode" title="How the two diagrams are shown">
+      <option value="sideBySide">Side by side</option>
+      <option value="overlay">Overlay</option>
+      <option value="swipe">Swipe</option>
+    </select>
     <label id="opacity-control" hidden>
       <span class="visually-hidden">Opacity of the upper diagram</span>
       <input id="opacity" type="range" min="0" max="100" value="50"
@@ -37,4 +46,6 @@ export const PANEL_BODY_HTML = `<div id="toolbar">
   <section class="pane" data-side="right">
     <div class="canvas"><div class="viewport" id="right-viewport"></div></div>
   </section>
+  <div id="swipe-handle" role="separator" tabindex="0" aria-orientation="vertical"
+       aria-label="Swipe divider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"></div>
 </div>`;

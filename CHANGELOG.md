@@ -9,8 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Overlay mode.** A new **Overlay** toggle stacks both renders in one canvas, with a slider that
-  fades the upper (newer) one — an onion skin. The two layers register at their top-left corners
+- **Swipe mode.** The same two stacked layers split at a draggable divider — the old version left
+  of it, the new version right of it. The divider is keyboard-operable once focused (arrows,
+  `Shift` for bigger steps, `Home`/`End`), and stays put on screen while you pan and zoom.
+- **A mode picker** in the toolbar replaces the Overlay toggle, now that there is more than one
+  way to show the two versions: Side by side, Overlay, Swipe.
+- **Overlay mode.** Stacks both renders in one canvas, with a slider that fades the upper (newer)
+  one — an onion skin. The two layers register at their top-left corners
   and share a single pan and zoom, so a node that shifted reads as movement instead of as two
   diagrams that happen to look different. Leaving overlay gives back whatever the Sync setting was
   before.

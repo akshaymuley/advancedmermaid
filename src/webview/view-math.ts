@@ -70,6 +70,21 @@ export function computeFitView(content: Box, viewport: Box, padding = 24): View 
   };
 }
 
+/**
+ * Where along `rect` the pointer sits, as a percentage — the swipe divider's position.
+ *
+ * Clamped, because a drag carries on outside the panel: an unclamped 140% would clip the upper
+ * layer away entirely and strand the handle off screen. A zero-width rect (a drag begun in the
+ * frame where the panel is still laying out) answers 50% rather than NaN.
+ */
+export function dividerPercent(clientX: number, rect: { left: number; width: number }): number {
+  if (!(rect.width > 0)) {
+    return 50;
+  }
+  const percent = ((clientX - rect.left) / rect.width) * 100;
+  return Math.min(100, Math.max(0, percent));
+}
+
 /** Guards against a zero/negative/NaN/Infinity box turning into a garbage CSS transform. */
 function isPositive(box: Box): boolean {
   return (

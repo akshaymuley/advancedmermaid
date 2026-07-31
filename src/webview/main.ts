@@ -1,7 +1,7 @@
 import mermaid from 'mermaid';
 import { isBlankDiagram } from './diagram-source';
-import { Box, computeFitView, panBy, View, zoomAt } from './view-math';
-import { initialViewMode, setMode, syncAvailable, toggleSync, ViewMode } from './view-mode';
+import { Box, computeFitView, dividerPercent, panBy, View, zoomAt } from './view-math';
+import { initialViewMode, isStacked, setMode, syncAvailable, toggleSync, ViewMode } from './view-mode';
 
 type Pane = 'left' | 'right';
 const PANES: Pane[] = ['left', 'right'];
@@ -277,12 +277,17 @@ el('refresh').addEventListener('click', () => vscodeApi.postMessage({ type: 'ref
  * else would move a framing the user just set.
  */
 function applyMode(): void {
-  const overlaid = viewMode.mode === 'overlay';
+  const { mode } = viewMode;
 
-  el('panes').classList.toggle('overlay', overlaid);
-  el('pane-headers').classList.toggle('overlay', overlaid);
-  el('overlay').setAttribute('aria-pressed', String(overlaid));
-  el('opacity-control').hidden = !overlaid;
+  for (const id of ['panes', 'pane-headers']) {
+    const classes = el(id).classList;
+    classes.toggle('stacked', isStacked(mode));
+    classes.toggle('overlay', mode === 'overlay');
+    classes.toggle('swipe', mode === 'swipe');
+  }
+
+  (el('mode') as HTMLSelectElement).value = mode;
+  el('opacity-control').hidden = mode !== 'overlay';
   el('sync').setAttribute('aria-pressed', String(isSynced()));
   (el('sync') as HTMLButtonElement).disabled = !syncAvailable(viewMode);
 
@@ -309,14 +314,61 @@ el('sync').addEventListener('click', () => {
   applyMode();
 });
 
-el('overlay').addEventListener('click', () => {
-  switchTo(viewMode.mode === 'overlay' ? 'sideBySide' : 'overlay');
+el('mode').addEventListener('change', (event) => {
+  switchTo((event.target as HTMLSelectElement).value as ViewMode);
 });
 
 el('opacity').addEventListener('input', (event) => {
   const percent = Number((event.target as HTMLInputElement).value);
   el('panes').style.setProperty('--overlay-opacity', String(percent / 100));
 });
+
+// --- Swipe divider ---
+
+/** Position of the divider, in percent of the pane width. Drives both the clip and the handle. */
+function setDivider(percent: number): void {
+  el('panes').style.setProperty('--swipe-position', `${percent}%`);
+  el('swipe-handle').setAttribute('aria-valuenow', String(Math.round(percent)));
+}
+
+{
+  const handle = el('swipe-handle');
+
+  handle.addEventListener('pointerdown', (event) => {
+    // Without this the drag also reaches the canvas underneath and pans the diagram.
+    event.preventDefault();
+    event.stopPropagation();
+    handle.setPointerCapture(event.pointerId);
+  });
+
+  handle.addEventListener('pointermove', (event) => {
+    if (!handle.hasPointerCapture(event.pointerId)) {
+      return;
+    }
+    setDivider(dividerPercent(event.clientX, el('panes').getBoundingClientRect()));
+  });
+
+  handle.addEventListener('pointerup', (event) => handle.releasePointerCapture(event.pointerId));
+
+  // A divider only draggable by mouse would be the one control a keyboard can't reach.
+  handle.addEventListener('keydown', (event) => {
+    const current = Number(handle.getAttribute('aria-valuenow') ?? 50);
+    const step = event.shiftKey ? 10 : 2;
+    const moved: Record<string, number> = {
+      ArrowLeft: current - step,
+      ArrowRight: current + step,
+      Home: 0,
+      End: 100,
+    };
+
+    const next = moved[event.key];
+    if (next === undefined) {
+      return;
+    }
+    event.preventDefault();
+    setDivider(Math.min(100, Math.max(0, next)));
+  });
+}
 
 window.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) {
