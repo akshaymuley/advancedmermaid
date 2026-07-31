@@ -23,12 +23,13 @@ tagged (see Known gaps), so Milestone 6 starts first.
 | `src/git-errors.ts` | 73 | Pure failure classification + user-facing messages |
 | `src/comparePanel.ts` | 225 | Webview panel registry, CSP shell, per-side edit tracking + refresh |
 | `src/debounce.ts` | 45 | Pure debounce with `cancel()` / `flush()` |
-| `src/webview/main.ts` | 304 | Mermaid render, per-pane pan/zoom, last-good-render fallback |
+| `src/webview/main.ts` | 344 | Mermaid render, per-pane pan/zoom, overlay wiring, last-good-render fallback |
 | `src/webview/view-math.ts` | 78 | Pure fit / zoom-anchor / clamp maths |
-| `src/webview/panel-body.ts` | 28 | The panel DOM, shared by the real panel and the harness |
+| `src/webview/panel-body.ts` | 40 | The panel DOM, shared by the real panel and the harness |
+| `src/webview/view-mode.ts` | 57 | Pure side-by-side/overlay state and its sync interaction |
 | `src/webview/diagram-source.ts` | 7 | `isBlankDiagram()` |
 | `src/test/harness/main.ts` | 61 | Boots the webview outside VS Code for Playwright |
-| `scripts/verify-view.mjs` | 238 | `npm run verify:view` — 34 browser checks + screenshots |
+| `scripts/verify-view.mjs` | 299 | `npm run verify:view` — 50 browser checks + screenshots |
 | `scripts/make-vscode-screenshots.mjs` | 254 | Captures `docs/images/` from a real VS Code over CDP |
 | `src/test/screenshots/driver.ts` | 67 | Sequences the panel states for that capture, in-host |
 | `src/mermaid-file.ts` | 28 | `classifySource()` — pure file-type guard (mermaid vs markdown) |
@@ -233,7 +234,21 @@ Split in two: everything *up to* the tag, then the publish itself.
 
 *Where the extension stops being "two renders" and starts being a diff tool.*
 
-- [ ] **Overlay mode** — stack both renders with adjustable opacity (onion-skin).
+- [x] **Overlay mode** — stack both renders with adjustable opacity (onion-skin). Both panes move
+      into one grid cell, so the right (newer) one is on top by DOM order and its viewport takes the
+      slider's opacity. The layers register at their **top-left** corners: they share one transform,
+      and centring each against the larger box was rejected because mermaid lays flowcharts out from
+      a stable origin — appending a node grows the diagram downward, which top-left alignment leaves
+      alone and centring would turn into whole-diagram movement that isn't there.
+      The state worth extracting turned out not to be geometry but the **sync interaction**
+      (`src/webview/view-mode.ts`): overlay is meaningless with two independent views, so it forces
+      Sync on and disables the control, then hands back whatever the user had on the way out. The
+      trap it exists to close is entering overlay twice — a naive implementation captures the
+      *forced* `synced: true` as the user's own setting and loses their unsynced framing for good.
+      *Found by the harness, not by reasoning:* hiding the opacity slider by setting `hidden` did
+      nothing, because the author rule `#opacity-control { display: flex }` beats the UA
+      stylesheet's `[hidden] { display: none }`. The unit tests saw a correct `hidden` attribute
+      and passed.
 - [ ] **Swipe mode** — draggable divider revealing old/new.
 - [ ] **Blink mode** — timed alternation between the two.
 - [ ] **Export comparison as PNG/SVG.**

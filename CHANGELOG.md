@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Overlay mode.** A new **Overlay** toggle stacks both renders in one canvas, with a slider that
+  fades the upper (newer) one — an onion skin. The two layers register at their top-left corners
+  and share a single pan and zoom, so a node that shifted reads as movement instead of as two
+  diagrams that happen to look different. Leaving overlay gives back whatever the Sync setting was
+  before.
 - **Compare two different files.** A new **Compare Diagram with File...** command compares a
   diagram against one in another file rather than against another version of the same file —
   a diagram against the copy it was forked from, or an `.mmd` against a block inside a `.md`.

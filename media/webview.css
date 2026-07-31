@@ -60,6 +60,74 @@ body {
   opacity: 0.7;
 }
 
+/* Overlay is the opposite: off is the default, so pressed is what stands out. */
+#overlay[aria-pressed='true'] {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+/* While overlay pins sync on, the control is not the user's to press. */
+#sync:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+#opacity-control {
+  display: flex;
+  align-items: center;
+}
+
+/* An author `display` beats the UA stylesheet's `[hidden] { display: none }`, so setting the
+   attribute alone would leave the slider on screen side by side. */
+#opacity-control[hidden] {
+  display: none;
+}
+
+#opacity {
+  width: 90px;
+  accent-color: var(--vscode-button-background);
+  cursor: pointer;
+}
+
+/* Present for screen readers, absent from the toolbar, which is already crowded. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+#pane-headers {
+  display: flex;
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+#pane-headers header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  font-size: 0.85em;
+  opacity: 0.8;
+  flex: 1 1 50%;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+#pane-headers header + header {
+  border-left: 1px solid var(--vscode-panel-border);
+}
+
+/* The label truncates; the badge beside it must stay visible. */
+#pane-headers header > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 #panes {
   display: flex;
   flex: 1 1 auto;
@@ -77,23 +145,40 @@ body {
   border-left: 1px solid var(--vscode-panel-border);
 }
 
-.pane header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 12px;
-  font-size: 0.85em;
-  opacity: 0.8;
-  border-bottom: 1px solid var(--vscode-panel-border);
-  flex: 0 0 auto;
-  white-space: nowrap;
-  overflow: hidden;
+/*
+ * Overlay: both panes occupy the same grid cell, so the two renders stack. The right pane is
+ * later in the DOM and therefore on top, which is also the newer side — no z-index needed.
+ * Both share one view (sync is forced on), so their content origins coincide and the diagrams
+ * register at their top-left corners.
+ */
+#panes.overlay {
+  display: grid;
 }
 
-/* The label truncates; the badge beside it must stay visible. */
-.pane header > span:first-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
+#panes.overlay .pane {
+  grid-area: 1 / 1;
+  border-left: none;
+}
+
+#panes.overlay .pane[data-side='right'] .viewport {
+  opacity: var(--overlay-opacity, 0.5);
+}
+
+/* The upper layer must not swallow the drag; one canvas takes the pointer for both. */
+#panes.overlay .pane[data-side='left'] .canvas {
+  pointer-events: none;
+}
+
+/* Side by side, each label sits over its own pane. Stacked, that would be a lie, so the
+   headers become a legend: which diagram is underneath, which is fading over it. */
+#pane-headers.overlay header[data-side='left'] span:first-child::after {
+  content: ' (under)';
+  opacity: 0.7;
+}
+
+#pane-headers.overlay header[data-side='right'] span:first-child::after {
+  content: ' (over)';
+  opacity: 0.7;
 }
 
 .canvas {

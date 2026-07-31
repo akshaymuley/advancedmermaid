@@ -1,6 +1,7 @@
 import mermaid from 'mermaid';
 import { isBlankDiagram } from './diagram-source';
 import { Box, computeFitView, panBy, View, zoomAt } from './view-math';
+import { initialViewMode, setMode, syncAvailable, toggleSync, ViewMode } from './view-mode';
 
 type Pane = 'left' | 'right';
 const PANES: Pane[] = ['left', 'right'];
@@ -45,8 +46,11 @@ const views: Record<Pane, View> = {
 };
 /** Measured at scale 1 after each successful render; the input to fit. */
 const contentBoxes: Record<Pane, Box | undefined> = { left: undefined, right: undefined };
-let synced = true;
+let viewMode = initialViewMode();
 let lastActive: Pane = 'left';
+
+/** `viewMode.synced` is the single source of truth; this reads as the old flag did. */
+const isSynced = (): boolean => viewMode.synced;
 
 function applyView(): void {
   for (const pane of PANES) {
@@ -54,7 +58,7 @@ function applyView(): void {
     el(`${pane}-viewport`).style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
   }
   const percent = (pane: Pane): string => `${Math.round(views[pane].scale * 100)}%`;
-  el('zoom-level').textContent = synced
+  el('zoom-level').textContent = isSynced()
     ? percent('left')
     : `${percent('left')} / ${percent('right')}`;
 }
@@ -63,7 +67,7 @@ function applyView(): void {
 function updateView(pane: Pane, change: (view: View) => View): void {
   lastActive = pane;
   userAdjusted = true;
-  if (synced) {
+  if (isSynced()) {
     const next = change(views[pane]);
     views.left = next;
     views.right = { ...next };
@@ -88,7 +92,7 @@ function fitToView(): void {
     return;
   }
 
-  if (synced) {
+  if (isSynced()) {
     const largest: Box = {
       width: Math.max(...boxes.map((b) => b.width)),
       height: Math.max(...boxes.map((b) => b.height)),
@@ -109,7 +113,7 @@ function fitToView(): void {
 
 /** Zoom a pane about its own centre — what the buttons and keyboard use. */
 function zoomBy(factor: number): void {
-  const pane = synced ? 'left' : lastActive;
+  const pane = isSynced() ? 'left' : lastActive;
   const size = paneSize(pane);
   updateView(pane, (view) => zoomAt(view, factor, { x: size.width / 2, y: size.height / 2 }));
 }
@@ -267,15 +271,51 @@ el('zoom-in').addEventListener('click', () => zoomBy(1.2));
 el('zoom-out').addEventListener('click', () => zoomBy(1 / 1.2));
 el('refresh').addEventListener('click', () => vscodeApi.postMessage({ type: 'refresh' }));
 
-el('sync').addEventListener('click', () => {
-  synced = !synced;
-  el('sync').setAttribute('aria-pressed', String(synced));
-  if (synced) {
-    // The pane you were last working in wins; anything else would move a view you just set.
+/**
+ * Push `viewMode` into the DOM: the layout classes, the toggle states, and the shared view that
+ * being synced implies. The pane last interacted with wins when the views converge — anything
+ * else would move a framing the user just set.
+ */
+function applyMode(): void {
+  const overlaid = viewMode.mode === 'overlay';
+
+  el('panes').classList.toggle('overlay', overlaid);
+  el('pane-headers').classList.toggle('overlay', overlaid);
+  el('overlay').setAttribute('aria-pressed', String(overlaid));
+  el('opacity-control').hidden = !overlaid;
+  el('sync').setAttribute('aria-pressed', String(isSynced()));
+  (el('sync') as HTMLButtonElement).disabled = !syncAvailable(viewMode);
+
+  if (isSynced()) {
     views.left = { ...views[lastActive] };
     views.right = { ...views[lastActive] };
   }
   applyView();
+}
+
+const switchTo = (mode: ViewMode): void => {
+  viewMode = setMode(viewMode, mode);
+  applyMode();
+
+  // Stacking two diagrams that were framed apart leaves them at unrelated scales; re-fit unless
+  // the user's own framing is what they want to keep.
+  if (!userAdjusted) {
+    fitToView();
+  }
+};
+
+el('sync').addEventListener('click', () => {
+  viewMode = toggleSync(viewMode);
+  applyMode();
+});
+
+el('overlay').addEventListener('click', () => {
+  switchTo(viewMode.mode === 'overlay' ? 'sideBySide' : 'overlay');
+});
+
+el('opacity').addEventListener('input', (event) => {
+  const percent = Number((event.target as HTMLInputElement).value);
+  el('panes').style.setProperty('--overlay-opacity', String(percent / 100));
 });
 
 window.addEventListener('keydown', (e) => {

@@ -15,6 +15,8 @@ Git diffs of Mermaid show text changes, but a one-line edit can completely rearr
 - **Markdown support** — compare ```` ```mermaid ```` blocks in `.md` files. When a file holds several, pick which one from a list labelled by the heading above each.
 - **Several comparisons at once** — each pair of files, refs, and diagrams gets its own tab, so you can line two of them up. Re-running the same comparison brings its tab forward instead of opening a duplicate.
 - SCM view integration — right-click a changed file in the Source Control panel.
+- **Overlay mode** — stack the two renders and fade between them with a slider. A node that moved
+  a few pixels is obvious superimposed and nearly invisible across a gap.
 - Diagrams open **fitted** to their panes. Zoom with the wheel, the buttons, or `+`/`-`/`0`.
 - Pan & zoom stay **synced** across both panes — or unlock them to inspect each side on its own.
 - **Live** — the working-tree pane follows your edits as you type.
@@ -38,6 +40,13 @@ a source that doesn't parse keeps the last good diagram on screen and raises a b
 header instead of blanking the pane.
 
 ![A mid-edit diagram holding its previous render with an error badge in the pane header](https://raw.githubusercontent.com/akshaymuley/AdvancedMermaid/main/docs/images/live-edit.png)
+
+### Overlaying the two
+
+**Overlay** stacks both renders in one canvas and the slider fades the upper (newer) one, so the
+two versions can be flicked between in place — an onion skin. The layers register at their
+top-left corners and share a single pan and zoom, so anything that moved shows up as movement
+rather than as two diagrams drifting apart.
 
 ### Inspecting one side
 
