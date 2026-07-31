@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Semantic mode — one merged diagram instead of two.** Reads both versions of a flowchart as a
+  graph, works out what actually changed, and draws a single diagram with additions in green,
+  removals dashed in red, and reworded nodes in amber carrying the text they used to have
+  (`Build image (was: Build)`). Mermaid still does the layout, so the merged diagram looks like
+  your diagram rather than like a diff tool's idea of one.
+  It reads flowcharts (`flowchart` and `graph`); anything else — a sequence or class diagram —
+  falls back to showing both versions side by side with a line saying why, and edits are picked up
+  live, so turning a diagram back into a flowchart brings the merged view straight back.
 - **Export the comparison as SVG or PNG.** A new **Export…** button writes both diagrams side by
   side under their labels, as one image — the thing you actually want to paste into a pull
   request. The extension you pick in the save dialog decides the format; PNG is rasterised at 2×.
@@ -23,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   of it, the new version right of it. The divider is keyboard-operable once focused (arrows,
   `Shift` for bigger steps, `Home`/`End`), and stays put on screen while you pan and zoom.
 - **A mode picker** in the toolbar replaces the Overlay toggle, now that there is more than one
-  way to show the two versions: Side by side, Overlay, Swipe.
+  way to show the two versions: Side by side, Overlay, Swipe, Blink, Semantic.
 - **Overlay mode.** Stacks both renders in one canvas, with a slider that fades the upper (newer)
   one — an onion skin. The two layers register at their top-left corners
   and share a single pan and zoom, so a node that shifted reads as movement instead of as two

@@ -3,6 +3,7 @@ import {
   initialViewMode,
   isStacked,
   setMode,
+  sharesOneView,
   syncAvailable,
   toggleSync,
   type ViewModeState,
@@ -141,5 +142,49 @@ describe('view mode', () => {
     const synced = state({ synced: true, remembered: true });
 
     expect(setMode(setMode(synced, 'swipe'), 'sideBySide')).toEqual(synced);
+  });
+
+  describe('semantic', () => {
+    // Semantic is one merged diagram in one canvas, not two layers on top of each other. It is
+    // the first mode where "shares a single view" and "stacks two renders" stop being the same
+    // question, which is why the two predicates had to be split apart.
+    it('is not a stacked mode, however much it shares with them', () => {
+      expect(isStacked('semantic')).toBe(false);
+      expect(sharesOneView('semantic')).toBe(true);
+    });
+
+    it('still pins sync on, since there is only one thing to look at', () => {
+      const next = setMode(state({ synced: false, remembered: false }), 'semantic');
+
+      expect(next).toEqual({ mode: 'semantic', synced: true, remembered: false });
+      expect(syncAvailable(next)).toBe(false);
+      expect(toggleSync(next)).toEqual(next);
+    });
+
+    it('hands the user their sync setting back on the way out', () => {
+      const unsynced = state({ synced: false, remembered: false });
+
+      expect(setMode(setMode(unsynced, 'semantic'), 'sideBySide')).toEqual(unsynced);
+    });
+
+    // The same trap as overlay -> swipe, and the reason the rule is about sharing a view rather
+    // than about stacking: overlay -> semantic changes mode *and* layout category, so a guard
+    // written in terms of `isStacked` would record the forced `true` as the user's own choice.
+    it('does not take a forced sync from the stacked mode it was entered from', () => {
+      const unsynced = state({ synced: false, remembered: false });
+      const viaOverlay = setMode(setMode(unsynced, 'overlay'), 'semantic');
+
+      expect(setMode(viaOverlay, 'sideBySide').synced).toBe(false);
+    });
+
+    it('survives wandering between semantic and the stacked modes', () => {
+      const unsynced = state({ synced: false, remembered: false });
+      const wandered = (['overlay', 'semantic', 'blink', 'semantic', 'swipe'] as const).reduce(
+        (acc, mode) => setMode(acc, mode),
+        unsynced,
+      );
+
+      expect(setMode(wandered, 'sideBySide')).toEqual(unsynced);
+    });
   });
 });

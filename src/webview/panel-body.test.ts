@@ -28,6 +28,9 @@ const REQUIRED_IDS = [
   'right-badge',
   'left-viewport',
   'right-viewport',
+  'merged-viewport',
+  'semantic-legend',
+  'semantic-notice',
 ];
 
 beforeEach(() => {
@@ -39,10 +42,26 @@ describe('PANEL_BODY_HTML', () => {
     expect(document.getElementById(id)).not.toBeNull();
   });
 
-  it('has one canvas and one viewport per pane', () => {
-    expect(document.querySelectorAll('.pane')).toHaveLength(2);
-    expect(document.querySelectorAll('.canvas')).toHaveLength(2);
-    expect(document.querySelectorAll('.viewport')).toHaveLength(2);
+  it('has one canvas and one viewport per pane, plus the merged one', () => {
+    expect(document.querySelectorAll('.pane')).toHaveLength(3);
+    expect(document.querySelectorAll('.canvas')).toHaveLength(3);
+    expect(document.querySelectorAll('.viewport')).toHaveLength(3);
+  });
+
+  it('gives the merged diagram its own pane rather than borrowing a side', () => {
+    // Reusing the left pane would make the merged render clobber that side's cached source and
+    // content box, and a live edit would then re-render the wrong thing back into it.
+    const merged = document.getElementById('merged-viewport')!;
+
+    expect(merged.closest('.pane')!.getAttribute('data-side')).toBe('merged');
+    expect(document.getElementById('left-viewport')!.closest('.pane')).not.toBe(
+      merged.closest('.pane'),
+    );
+  });
+
+  it('starts with the semantic legend and notice out of the way', () => {
+    expect(document.getElementById('semantic-legend')!.hasAttribute('hidden')).toBe(true);
+    expect(document.getElementById('semantic-notice')!.hasAttribute('hidden')).toBe(true);
   });
 
   it('starts with both error badges hidden', () => {
@@ -65,7 +84,7 @@ describe('PANEL_BODY_HTML', () => {
       (option) => option.value
     );
 
-    expect(modes).toEqual(['sideBySide', 'overlay', 'swipe', 'blink']);
+    expect(modes).toEqual(['sideBySide', 'overlay', 'swipe', 'blink', 'semantic']);
   });
 
   it('offers no blink speed fast enough to be a flash hazard', () => {

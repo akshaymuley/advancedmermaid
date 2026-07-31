@@ -69,8 +69,11 @@ const PIPE_LABEL = /^\s*\|([^|]*)\|/;
 /**
  * Bracket pairs, longest opener first so `([` is never read as `(` with a stray `[`.
  * The pair itself is the shape: storing it verbatim means re-emitting cannot pick the wrong one.
+ *
+ * Exported because the merged render writes these back out, and a second copy of the table there
+ * would be a second place to get a shape wrong.
  */
-const SHAPES: readonly [string, string][] = [
+export const SHAPES: readonly [string, string][] = [
   ['([', '])'],
   ['[[', ']]'],
   ['[(', ')]'],
@@ -273,7 +276,7 @@ function matchLink(rest: string): { link: Link; length: number } | null {
   if (inline) {
     const label = inline[1] ?? inline[3];
     const connector = inline[2] ?? inline[4];
-    return { link: { connector, label }, length: inline[0].length };
+    return { link: { connector, label: unquote(label) }, length: inline[0].length };
   }
 
   const plain = CONNECTOR.exec(rest);
@@ -283,7 +286,10 @@ function matchLink(rest: string): { link: Link; length: number } | null {
 
   const pipe = PIPE_LABEL.exec(rest.slice(plain[0].length));
   return pipe
-    ? { link: { connector: plain[0], label: pipe[1].trim() }, length: plain[0].length + pipe[0].length }
+    ? {
+        link: { connector: plain[0], label: unquote(pipe[1].trim()) },
+        length: plain[0].length + pipe[0].length,
+      }
     : { link: { connector: plain[0] }, length: plain[0].length };
 }
 

@@ -14,8 +14,9 @@ side by side as SVG or PNG. **Milestones 1–6 complete.**
 Everything since v1.0.1 sits in `[Unreleased]` — two milestones' worth, since nothing has been
 tagged in between. Whether that ships as one version or as v1.1.0 followed by v1.2.0 is a decision
 for release time; either way it is **held** on Open VSX registration (see Known gaps). Milestone 7
-is under way: its graph core — a flowchart parser and a graph diff — is in, both pure and
-unreleased, with nothing wired to them yet. The merged render is the next slice.
+is most of the way in: flowcharts are parsed into a graph, diffed, and rendered as **one merged
+diagram** with the changes marked, falling back to side by side for anything that isn't a
+flowchart. Only extending it past `flowchart` remains, and that one is waiting on demand.
 
 ---
 
@@ -28,16 +29,17 @@ unreleased, with nothing wired to them yet. The merged render is the next slice.
 | `src/git-errors.ts` | 73 | Pure failure classification + user-facing messages |
 | `src/comparePanel.ts` | 305 | Webview panel registry, CSP shell, per-side edit tracking, refresh, export round trip |
 | `src/debounce.ts` | 45 | Pure debounce with `cancel()` / `flush()` |
-| `src/webview/main.ts` | 517 | Mermaid render, pan/zoom, mode/divider/blink wiring, export composition + rasterise |
+| `src/webview/main.ts` | 644 | Mermaid render, pan/zoom, mode/divider/blink/semantic wiring, export composition + rasterise |
 | `src/webview/view-math.ts` | 93 | Pure fit / zoom-anchor / clamp maths + `dividerPercent` |
 | `src/webview/panel-body.ts` | 61 | The panel DOM, shared by the real panel and the harness |
-| `src/webview/view-mode.ts` | 63 | Pure comparison-mode state and its sync interaction |
+| `src/webview/view-mode.ts` | 78 | Pure comparison-mode state, its layout category, and its sync interaction |
 | `src/webview/export-image.ts` | 103 | Pure SVG composition of the two diagrams for export |
 | `src/webview/flowchart-parse.ts` | 392 | Pure `flowchart`/`graph` source → nodes, edges, subgraphs; `null` for anything else |
 | `src/webview/flowchart-diff.ts` | 139 | Pure graph diff — added / removed / changed, in a stable order |
+| `src/webview/flowchart-merge.ts` | 149 | Pure: a diff back out as one mermaid source, changes styled |
 | `src/webview/diagram-source.ts` | 7 | `isBlankDiagram()` |
 | `src/test/harness/main.ts` | 61 | Boots the webview outside VS Code for Playwright |
-| `scripts/verify-view.mjs` | 531 | `npm run verify:view` — 94 browser checks + screenshots |
+| `scripts/verify-view.mjs` | 643 | `npm run verify:view` — 115 browser checks + screenshots |
 | `scripts/make-vscode-screenshots.mjs` | 254 | Captures `docs/images/` from a real VS Code over CDP |
 | `src/test/screenshots/driver.ts` | 67 | Sequences the panel states for that capture, in-host |
 | `src/mermaid-file.ts` | 28 | `classifySource()` — pure file-type guard (mermaid vs markdown) |
@@ -344,9 +346,34 @@ rendering, a test harness, and real usage feedback to know which diagram types m
       Output follows the newer version's order with each removal spliced back in after whatever
       preceded it, because that order becomes the order of the regenerated source: an unstable one
       would relayout the diagram on every refresh.
-- [ ] Render **one merged diagram** with change highlighting and a stable layout, so the
+- [x] Render **one merged diagram** with change highlighting and a stable layout, so the
       change is visually obvious rather than requiring eye-comparison.
-- [ ] Fall back cleanly to side-by-side for unsupported diagram types.
+      `src/webview/flowchart-merge.ts` regenerates mermaid source for the union graph and hands it
+      to the same `mermaid.render` the panes use, so mermaid still does the layout. A reworded node
+      carries its old text — `Build image (was: Build)` — because the colour says *that* something
+      changed and only the text says *what*.
+      The merged diagram gets a **third pane**, not a borrowed side: rendering it into the left
+      pane would clobber that side's cached source and measured box, and the next live edit would
+      re-render the wrong thing into it.
+      This is the mode that forced `isStacked` apart into two predicates. It was
+      `mode !== 'sideBySide'` and did double duty — layout class *and* sync rule — and semantic is
+      the first mode where those diverge: one merged diagram shares a single view like the stacked
+      modes but must not be laid out on the stacked grid. `isStacked` is now a positive list and
+      `sharesOneView` carries the sync rule, including the `remembered` trap that overlay→swipe
+      already existed to close.
+      *Two found only in the browser, as every mode before it:* mermaid applies `linkStyle` as an
+      **inline style, not a class**, so a check counting `.removed` elements passed on nodes while
+      saying nothing about edges; and the first harness fixture removed only an edge, so nothing
+      carried the class at all and the check failed for a third reason again.
+      *One found by the round-trip test the moment it first ran:* the parser unquoted node labels
+      but not edge labels, so `-->|"yes"|` written by the emitter read back as `"yes"` with the
+      quotes still on. Slice 1 shipped with that; nothing had ever written a label back out before.
+- [x] Fall back cleanly to side-by-side for unsupported diagram types.
+      A sequence or class diagram — or any source too broken to parse — lays the two panes back out
+      and raises a notice saying semantic diff reads flowcharts only. The picker keeps showing
+      Semantic, so the answer to "why is there no diff?" is on screen rather than inferred from a
+      mode that silently reverted. Re-decided on every message, not only on entry, so editing a
+      diagram back into a flowchart restores the merged view without reselecting the mode.
 - [ ] Extend to `sequenceDiagram`, then `classDiagram`, based on demand.
 
 ---
