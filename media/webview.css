@@ -60,10 +60,13 @@ body {
   opacity: 0.7;
 }
 
-/* Overlay is the opposite: off is the default, so pressed is what stands out. */
-#overlay[aria-pressed='true'] {
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
+#mode {
+  background: var(--vscode-dropdown-background);
+  color: var(--vscode-dropdown-foreground);
+  border: 1px solid var(--vscode-dropdown-border, transparent);
+  padding: 3px 6px;
+  border-radius: 2px;
+  cursor: pointer;
 }
 
 /* While overlay pins sync on, the control is not the user's to press. */
@@ -146,31 +149,84 @@ body {
 }
 
 /*
- * Overlay: both panes occupy the same grid cell, so the two renders stack. The right pane is
- * later in the DOM and therefore on top, which is also the newer side — no z-index needed.
- * Both share one view (sync is forced on), so their content origins coincide and the diagrams
- * register at their top-left corners.
+ * Stacked modes: both panes occupy the same grid cell, so the two renders sit on top of each
+ * other. The right pane is later in the DOM and therefore on top, which is also the newer side —
+ * no z-index needed. Both share one view (sync is forced on), so their content origins coincide
+ * and the diagrams register at their top-left corners.
  */
-#panes.overlay {
+#panes.stacked {
   display: grid;
+  position: relative;
 }
 
-#panes.overlay .pane {
+#panes.stacked .pane {
   grid-area: 1 / 1;
   border-left: none;
 }
 
+/* The upper layer must not swallow the drag; one canvas takes the pointer for both. */
+#panes.stacked .pane[data-side='left'] .canvas {
+  pointer-events: none;
+}
+
+/* Overlay reveals the upper layer by fading it. */
 #panes.overlay .pane[data-side='right'] .viewport {
   opacity: var(--overlay-opacity, 0.5);
 }
 
-/* The upper layer must not swallow the drag; one canvas takes the pointer for both. */
-#panes.overlay .pane[data-side='left'] .canvas {
-  pointer-events: none;
+/*
+ * Swipe reveals it by clipping instead — everything right of the divider.
+ *
+ * The clip goes on `.canvas`, never on `.viewport`: the viewport carries the pan/zoom transform,
+ * and `clip-path` resolves in an element's own coordinate space *before* its transform, so a
+ * percentage there would be measured in diagram units and the divider would slide and stretch
+ * with every zoom. `.canvas` is untransformed, so the divider stays put on screen.
+ */
+#panes.swipe .pane[data-side='right'] .canvas {
+  clip-path: inset(0 0 0 var(--swipe-position, 50%));
+}
+
+#swipe-handle {
+  display: none;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--swipe-position, 50%);
+  width: 11px;
+  margin-left: -5px;
+  cursor: col-resize;
+  z-index: 1;
+}
+
+#panes.swipe #swipe-handle {
+  display: block;
+}
+
+/* A thin line down the middle of a wider, easier-to-grab hit area. */
+#swipe-handle::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 5px;
+  width: 1px;
+  /* Falls back rather than vanishing: an invisible divider is indistinguishable from a broken
+     one, and not every surface that renders this CSS defines the full theme. */
+  background: var(--vscode-focusBorder, #0078d4);
+}
+
+#swipe-handle:focus-visible {
+  outline: none;
+}
+
+#swipe-handle:focus-visible::before,
+#swipe-handle:hover::before {
+  left: 4px;
+  width: 3px;
 }
 
 /* Side by side, each label sits over its own pane. Stacked, that would be a lie, so the
-   headers become a legend: which diagram is underneath, which is fading over it. */
+   headers become a legend for which layer is which. */
 #pane-headers.overlay header[data-side='left'] span:first-child::after {
   content: ' (under)';
   opacity: 0.7;
@@ -178,6 +234,16 @@ body {
 
 #pane-headers.overlay header[data-side='right'] span:first-child::after {
   content: ' (over)';
+  opacity: 0.7;
+}
+
+#pane-headers.swipe header[data-side='left'] span:first-child::after {
+  content: ' (left of divider)';
+  opacity: 0.7;
+}
+
+#pane-headers.swipe header[data-side='right'] span:first-child::after {
+  content: ' (right of divider)';
   opacity: 0.7;
 }
 

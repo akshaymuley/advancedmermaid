@@ -19,17 +19,17 @@ tagged (see Known gaps), so Milestone 6 starts first.
 | File | Lines | Role |
 |---|---|---|
 | `src/extension.ts` | 380 | Four commands, fence/ref/file pickers, side resolution, `compare` orchestration |
-| `src/git.ts` | 61 | Reads a file at a ref and lists refs; throws a classified `GitFailureError` |
+| `src/git.ts` | 109 | Reads a file at a ref and lists refs; waits out repository discovery; throws a classified `GitFailureError` |
 | `src/git-errors.ts` | 73 | Pure failure classification + user-facing messages |
 | `src/comparePanel.ts` | 225 | Webview panel registry, CSP shell, per-side edit tracking + refresh |
 | `src/debounce.ts` | 45 | Pure debounce with `cancel()` / `flush()` |
-| `src/webview/main.ts` | 344 | Mermaid render, per-pane pan/zoom, overlay wiring, last-good-render fallback |
-| `src/webview/view-math.ts` | 78 | Pure fit / zoom-anchor / clamp maths |
-| `src/webview/panel-body.ts` | 40 | The panel DOM, shared by the real panel and the harness |
-| `src/webview/view-mode.ts` | 57 | Pure side-by-side/overlay state and its sync interaction |
+| `src/webview/main.ts` | 396 | Mermaid render, per-pane pan/zoom, mode + divider wiring, last-good-render fallback |
+| `src/webview/view-math.ts` | 93 | Pure fit / zoom-anchor / clamp maths + `dividerPercent` |
+| `src/webview/panel-body.ts` | 51 | The panel DOM, shared by the real panel and the harness |
+| `src/webview/view-mode.ts` | 63 | Pure comparison-mode state and its sync interaction |
 | `src/webview/diagram-source.ts` | 7 | `isBlankDiagram()` |
 | `src/test/harness/main.ts` | 61 | Boots the webview outside VS Code for Playwright |
-| `scripts/verify-view.mjs` | 299 | `npm run verify:view` — 50 browser checks + screenshots |
+| `scripts/verify-view.mjs` | 387 | `npm run verify:view` — 68 browser checks + screenshots |
 | `scripts/make-vscode-screenshots.mjs` | 254 | Captures `docs/images/` from a real VS Code over CDP |
 | `src/test/screenshots/driver.ts` | 67 | Sequences the panel states for that capture, in-host |
 | `src/mermaid-file.ts` | 28 | `classifySource()` — pure file-type guard (mermaid vs markdown) |
@@ -249,7 +249,22 @@ Split in two: everything *up to* the tag, then the publish itself.
       nothing, because the author rule `#opacity-control { display: flex }` beats the UA
       stylesheet's `[hidden] { display: none }`. The unit tests saw a correct `hidden` attribute
       and passed.
-- [ ] **Swipe mode** — draggable divider revealing old/new.
+- [x] **Swipe mode** — draggable divider revealing old/new. Reuses overlay's stacked grid; the
+      only new geometry is `clip-path: inset(0 0 0 var(--swipe-position))` on the upper layer.
+      **That clip goes on `.canvas`, never on `.viewport`:** the viewport carries the pan/zoom
+      transform, and `clip-path` resolves in an element's own coordinate space *before* its
+      transform, so a percentage there is measured in diagram units and the divider would slide and
+      stretch on every zoom. Pinned by a harness check that zooms and asserts the divider hasn't
+      moved on screen.
+      `view-mode.ts` generalised from "overlay on/off" to real modes, which is what forced the
+      sync rule to be restated: `remembered` is captured only when leaving a **non-stacked** mode.
+      The old "same mode is a no-op" guard looked sufficient and wasn't — overlay→swipe is a
+      different mode with both sides stacked, so it slipped straight past and would have recorded
+      the *forced* `synced: true` as the user's own setting.
+      The Overlay toggle became a mode `<select>`: three states no longer fit a pressed/unpressed
+      button, and blink is one more `<option>`. Overlay was unreleased, so nothing had to be kept
+      working. The divider takes arrow keys, `Shift` for bigger steps and `Home`/`End` — it would
+      otherwise be the only control in the panel a keyboard can't reach.
 - [ ] **Blink mode** — timed alternation between the two.
 - [ ] **Export comparison as PNG/SVG.**
 

@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { initialViewMode, setMode, syncAvailable, toggleSync, type ViewModeState } from './view-mode';
+import {
+  initialViewMode,
+  isStacked,
+  setMode,
+  syncAvailable,
+  toggleSync,
+  type ViewModeState,
+} from './view-mode';
 
 const state = (over: Partial<ViewModeState> = {}): ViewModeState => ({
   ...initialViewMode(),
@@ -69,5 +76,50 @@ describe('view mode', () => {
   it('leaves the state alone when the mode it is already in is set again', () => {
     const sideBySide = state();
     expect(setMode(sideBySide, 'sideBySide')).toEqual(sideBySide);
+  });
+
+  it('knows which modes stack the two renders', () => {
+    expect(isStacked('sideBySide')).toBe(false);
+    expect(isStacked('overlay')).toBe(true);
+    expect(isStacked('swipe')).toBe(true);
+  });
+
+  it('forces sync on for swipe, as for overlay', () => {
+    const next = setMode(state({ synced: false, remembered: false }), 'swipe');
+
+    expect(next).toEqual({ mode: 'swipe', synced: true, remembered: false });
+  });
+
+  it('ignores a sync toggle while swiping', () => {
+    const swiping = setMode(state(), 'swipe');
+
+    expect(toggleSync(swiping)).toEqual(swiping);
+    expect(syncAvailable(swiping)).toBe(false);
+  });
+
+  it('does not let one stacked mode hand its forced sync to the next', () => {
+    // The trap: overlay -> swipe is a *different* mode, so the "same mode is a no-op" guard
+    // doesn't catch it. Capturing `synced` here would record the forced `true` as the user's own
+    // choice and lose their unsynced framing on the way back to side by side.
+    const unsynced = state({ synced: false, remembered: false });
+    const viaOverlay = setMode(setMode(unsynced, 'overlay'), 'swipe');
+
+    expect(setMode(viaOverlay, 'sideBySide').synced).toBe(false);
+  });
+
+  it('carries the setting back through any number of stacked hops', () => {
+    const unsynced = state({ synced: false, remembered: false });
+    const wandered = ['overlay', 'swipe', 'overlay', 'swipe'].reduce(
+      (acc, mode) => setMode(acc, mode as ViewModeState['mode']),
+      unsynced
+    );
+
+    expect(setMode(wandered, 'sideBySide')).toEqual(unsynced);
+  });
+
+  it('restores the sync setting when leaving swipe directly', () => {
+    const synced = state({ synced: true, remembered: true });
+
+    expect(setMode(setMode(synced, 'swipe'), 'sideBySide')).toEqual(synced);
   });
 });

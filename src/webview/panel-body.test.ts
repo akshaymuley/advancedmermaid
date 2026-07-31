@@ -13,7 +13,8 @@ const REQUIRED_IDS = [
   'zoom-in',
   'sync',
   'refresh',
-  'overlay',
+  'mode',
+  'swipe-handle',
   'opacity',
   'opacity-control',
   'pane-headers',
@@ -51,8 +52,25 @@ describe('PANEL_BODY_HTML', () => {
   });
 
   it('starts side by side, with the opacity slider out of the way', () => {
-    expect(document.getElementById('overlay')!.getAttribute('aria-pressed')).toBe('false');
+    expect((document.getElementById('mode') as HTMLSelectElement).value).toBe('sideBySide');
     expect(document.getElementById('opacity-control')!.hasAttribute('hidden')).toBe(true);
+  });
+
+  it('offers every comparison mode in the picker', () => {
+    const modes = [...document.querySelectorAll<HTMLOptionElement>('#mode option')].map(
+      (option) => option.value
+    );
+
+    expect(modes).toEqual(['sideBySide', 'overlay', 'swipe']);
+  });
+
+  it('describes the swipe divider to assistive tech', () => {
+    // A divider that can only be dragged is the one control a keyboard can't reach.
+    const handle = document.getElementById('swipe-handle')!;
+
+    expect(handle.getAttribute('role')).toBe('separator');
+    expect(handle.getAttribute('tabindex')).toBe('0');
+    expect(handle.getAttribute('aria-valuenow')).toBe('50');
   });
 
   it('keeps both pane labels in one header row, so overlay has somewhere to put them', () => {
