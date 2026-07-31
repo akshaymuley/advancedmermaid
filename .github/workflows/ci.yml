@@ -5,12 +5,19 @@ on:
     branches: [main]
   pull_request:
 
+# Actions are pinned at v5, the first major of each that declares the node24 runtime — v4
+# declares node20, which the runner now force-runs on 24 and warns about. v6 and v7 exist and
+# also declare node24, so they buy nothing here; crossing those majors is a separate decision
+# to make on their own merits rather than a side effect of silencing a deprecation.
+#
+# Note `node-version` below is unrelated: it is the Node the build scripts run on, not the one
+# the actions themselves execute in.
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           # vite 8 (pulled in by vitest) requires ^20.19 || >=22.12; 22 also keeps the
           # runner's npm close enough to the one that writes the lockfile locally.
@@ -26,12 +33,12 @@ jobs:
   integration:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           # The suite reads samples/pipeline.mmd at HEAD through the git extension, so it needs
           # real history rather than the default shallow clone.
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
       - run: npm ci
