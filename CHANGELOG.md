@@ -64,6 +64,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Comparisons survive a window reload.** Reloading the window used to close every open
+  comparison; they now come back, however many were arranged. Each panel remembers what its two
+  panes were showing — the files, the diagrams within them, and the versions — and rebuilds itself
+  from that. A comparison whose file has since been deleted or renamed closes rather than
+  reopening empty. Pan, zoom and the comparison mode are not carried across: a restored panel comes
+  back framed and side by side.
 - **Diagrams are drawn in your editor's font.** They had always rendered in mermaid's default
   Trebuchet MS, a few pixels from a panel drawn in the editor's own font — two typefaces side by
   side in one view. The font is resolved before mermaid is told about it rather than handed over as

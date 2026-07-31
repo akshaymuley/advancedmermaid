@@ -5,6 +5,7 @@ import { selectDiagram } from './diagram-selection';
 import { exportFileName, formatFor, type ExportFormat } from './export-file';
 import { classifySource } from './mermaid-file';
 import { panelKey } from './panel-key';
+import { toPanelState } from './panel-state';
 import { tracksDocument, type SideTarget } from './side-source';
 import { PANEL_BODY_HTML } from './webview/panel-body';
 
@@ -58,6 +59,19 @@ export class ComparePanel {
   private readonly disposables: vscode.Disposable[] = [];
   private readonly scheduleRefresh = debounce(() => void this.refreshWorkingTree(), REFRESH_DELAY_MS);
 
+  /** Shared with the serializer registration, which only restores panels of a matching type. */
+  static readonly viewType = 'mermaidCompare';
+
+  private static webviewOptions(extensionUri: vscode.Uri): vscode.WebviewOptions {
+    return {
+      enableScripts: true,
+      localResourceRoots: [
+        vscode.Uri.joinPath(extensionUri, 'dist'),
+        vscode.Uri.joinPath(extensionUri, 'media'),
+      ],
+    };
+  }
+
   static show(extensionUri: vscode.Uri, data: CompareData, loadSide: LoadSide): void {
     const key = panelKey(data.targets);
     const existing = ComparePanel.open.get(key);
@@ -68,18 +82,39 @@ export class ComparePanel {
     }
 
     const panel = vscode.window.createWebviewPanel(
-      'mermaidCompare',
+      ComparePanel.viewType,
       'Mermaid Compare',
       vscode.ViewColumn.Active,
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [
-          vscode.Uri.joinPath(extensionUri, 'dist'),
-          vscode.Uri.joinPath(extensionUri, 'media'),
-        ],
-      }
+      { ...ComparePanel.webviewOptions(extensionUri), retainContextWhenHidden: true }
     );
+    ComparePanel.open.set(key, new ComparePanel(panel, extensionUri, data, loadSide, key));
+  }
+
+  /**
+   * Take over a panel VS Code restored after a reload, rather than creating one.
+   *
+   * Filing it under its `panelKey` is the part that isn't optional: a restored panel missing from
+   * the registry would let the same comparison open a second tab, which is the exact collision
+   * `panel-key.ts` exists to prevent.
+   *
+   * A restored panel arrives with an empty webview — its options and HTML have to be set again.
+   */
+  static adopt(
+    panel: vscode.WebviewPanel,
+    extensionUri: vscode.Uri,
+    data: CompareData,
+    loadSide: LoadSide
+  ): void {
+    const key = panelKey(data.targets);
+
+    // A comparison the user reopened before its panel was restored already holds this key. Two
+    // panels showing one comparison helps nobody; the restored one goes.
+    if (ComparePanel.open.has(key)) {
+      panel.dispose();
+      return;
+    }
+
+    panel.webview.options = ComparePanel.webviewOptions(extensionUri);
     ComparePanel.open.set(key, new ComparePanel(panel, extensionUri, data, loadSide, key));
   }
 
@@ -130,7 +165,13 @@ export class ComparePanel {
 
     panel.onDidDispose(() => {
       this.disposed = true;
-      ComparePanel.open.delete(this.key);
+      // Only if the registry still points at *this* panel. Disposal is asynchronous, so a
+      // comparison reopened while its old panel is still closing has already registered a new
+      // panel under the same key — and an unconditional delete here evicts the live one, after
+      // which the next identical comparison opens a duplicate instead of revealing it.
+      if (ComparePanel.open.get(this.key) === this) {
+        ComparePanel.open.delete(this.key);
+      }
       this.scheduleRefresh.cancel();
       this.disposables.forEach((d) => d.dispose());
     });
@@ -239,7 +280,16 @@ export class ComparePanel {
     }
     const { title, left, right } = this.pending;
     this.panel.title = `Compare: ${title}`;
-    void this.panel.webview.postMessage({ type: 'compare', title, left, right });
+    // The state rides along so the webview can hand it to `setState`. That is the only route by
+    // which VS Code will give it back to the serializer after a reload — the host cannot store it
+    // against the panel itself.
+    void this.panel.webview.postMessage({
+      type: 'compare',
+      title,
+      left,
+      right,
+      state: toPanelState(this.data.targets),
+    });
     this.pending = undefined;
   }
 

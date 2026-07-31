@@ -26,6 +26,8 @@ interface CompareMessage {
   title: string;
   left: Side;
   right: Side;
+  /** Opaque here: handed straight to `setState` so a reload can rebuild this comparison. */
+  state?: unknown;
 }
 /** The host answers an export request with the format the save dialog settled on. */
 interface ExportAsMessage {
@@ -34,7 +36,11 @@ interface ExportAsMessage {
 }
 type HostMessage = CompareMessage | ExportAsMessage;
 
-declare function acquireVsCodeApi(): { postMessage(message: unknown): void };
+declare function acquireVsCodeApi(): {
+  postMessage(message: unknown): void;
+  /** What VS Code keeps for us across a window reload, and hands to the panel serializer. */
+  setState(state: unknown): void;
+};
 const vscodeApi = acquireVsCodeApi();
 
 /** Fails loudly if the markup in panel-body.ts and this module ever drift apart. */
@@ -357,6 +363,12 @@ window.addEventListener('message', async (event: MessageEvent<HostMessage>) => {
   if (message.type !== 'compare') {
     return;
   }
+  // Held by VS Code across a window reload and handed back to the panel serializer. Recorded
+  // before rendering: a diagram that fails to render is still a comparison worth reopening.
+  if (message.state !== undefined) {
+    vscodeApi.setState(message.state);
+  }
+
   el('doc-title').textContent = message.title;
   await Promise.all([renderPane('left', message.left), renderPane('right', message.right)]);
 

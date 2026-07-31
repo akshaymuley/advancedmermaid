@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { getGitContent, listRefs } from '../../git';
 import { orderRefs } from '../../ref-list';
-import { compare, fromRef, fromTree } from '../../extension';
+import { compare, fromRef, fromTree, restoreComparison } from '../../extension';
 import { writeExport } from '../../comparePanel';
 
 /**
@@ -49,9 +49,24 @@ async function waitFor(
   assert.fail(`timed out after ${timeoutMs}ms waiting for ${description}`);
 }
 
+/**
+ * Close everything and wait until it has actually gone.
+ *
+ * A fixed pause used to stand in for this, and it was long enough on a developer machine and not
+ * on CI: a panel still finishing its disposal is still in the registry that decides whether the
+ * next comparison reveals an existing tab or opens a new one, so the next test inherited a
+ * half-closed panel and saw a duplicate that wasn't one.
+ */
 async function closeAllPanels(): Promise<void> {
   await vscode.commands.executeCommand('workbench.action.closeAllEditors');
-  await new Promise((resolve) => setTimeout(resolve, 200));
+  // Every tab, not just the compare ones. "Close all editors" drains asynchronously, and a close
+  // still in flight will take a panel created moments later with it — which is precisely how the
+  // restored panel used to vanish between being adopted and being looked up again.
+  await waitFor('every editor to close', () =>
+    vscode.window.tabGroups.all.every((group) => group.tabs.length === 0)
+  );
+  // The tab goes before `onDidDispose` runs, and it is that handler which frees the registry key.
+  await new Promise((resolve) => setTimeout(resolve, 500));
 }
 
 describe('advanced-mermaid in a real VS Code host', () => {
@@ -353,6 +368,107 @@ describe('advanced-mermaid in a real VS Code host', () => {
     // CONTRIBUTING.md is prose only. Markdown is admitted by the `when` clauses now, so "no
     // diagram in here" is a distinct outcome from "wrong file type".
     await assertNoPanelFor('CONTRIBUTING.md');
+  });
+
+  /**
+   * Restoring after a window reload.
+   *
+   * The reload itself cannot be tested from in here — it would kill the run that is asserting on
+   * it — so the seam is `restoreComparison`, which is everything up to VS Code deciding to call
+   * it. That last step is the manual check, as the native save dialog is for export.
+   */
+  describe('restoring a panel after a reload', () => {
+    /** A panel in the state VS Code hands the serializer: created, but with an empty webview. */
+    const restoredPanel = (): vscode.WebviewPanel =>
+      vscode.window.createWebviewPanel(
+        'mermaidCompare',
+        'Mermaid Compare',
+        vscode.ViewColumn.Active,
+        {}
+      );
+
+    const stateFor = (file: string) => ({
+      version: 1,
+      left: { uri: workspaceFile('samples', file).toString(), kind: 'mermaid', source: { kind: 'ref', ref: 'HEAD' } },
+      right: { uri: workspaceFile('samples', file).toString(), kind: 'mermaid', source: { kind: 'workingTree' } },
+    });
+
+    it('rebuilds the comparison the state describes', async () => {
+      await restoreComparison(extensionUri(), restoredPanel(), stateFor('pipeline.mmd'));
+
+      await waitFor('the restored panel to finish its handshake', () =>
+        openTabTitles().includes('Compare: pipeline.mmd')
+      );
+    });
+
+    /**
+     * The registry is keyed by comparison, and a restored panel has to be filed under that key
+     * like any other — otherwise re-running the comparison opens a second tab for it, which is
+     * the collision `panel-key.ts` exists to prevent.
+     */
+    it('files the restored panel under its key, so the same comparison does not open twice', async () => {
+      // Starting from a clean slate matters here specifically: a panel left half-disposed by an
+      // earlier test is still holding this comparison's registry key, and the duplicate this
+      // test is looking for would be that, not the behaviour under test.
+      await closeAllPanels();
+
+      await restoreComparison(extensionUri(), restoredPanel(), stateFor('pipeline.mmd'));
+      await waitFor('the restored panel', () => openTabTitles().includes('Compare: pipeline.mmd'));
+
+      /**
+       * `compare` rather than the command, and the distinction is not cosmetic: this file is
+       * bundled, so it carries its **own copy** of the extension module — including the panel
+       * registry. Running the command instead would go through the extension host's separate
+       * copy, whose registry has never heard of the panel restored a line above, and the
+       * duplicate that produced would say nothing about the behaviour under test.
+       */
+      const uri = workspaceFile('samples', 'pipeline.mmd');
+      await compare(extensionUri(), fromRef(uri, 'HEAD'), fromTree(uri));
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      const matching = openTabTitles().filter((title) => title === 'Compare: pipeline.mmd');
+      assert.strictEqual(
+        matching.length,
+        1,
+        `expected one panel, saw ${matching.length}: ${openTabTitles().join(' | ')}`
+      );
+    });
+
+    it('closes the panel rather than leaving it empty when the state means nothing', async () => {
+      const panel = restoredPanel();
+      await restoreComparison(extensionUri(), panel, { version: 99, left: {}, right: {} });
+
+      // Disposing an already-disposed panel is a no-op; disposing a live one is not, so a panel
+      // still on screen here would show up as a lingering tab.
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      assert.ok(
+        !openTabTitles().includes('Mermaid Compare'),
+        `an unreadable state should leave no panel, saw: ${openTabTitles().join(', ')}`
+      );
+    });
+
+    it('closes the panel when the file it names is gone', async () => {
+      const panel = restoredPanel();
+      await restoreComparison(extensionUri(), panel, {
+        version: 1,
+        left: {
+          uri: workspaceFile('samples', 'deleted-since.mmd').toString(),
+          kind: 'mermaid',
+          source: { kind: 'workingTree' },
+        },
+        right: {
+          uri: workspaceFile('samples', 'deleted-since.mmd').toString(),
+          kind: 'mermaid',
+          source: { kind: 'ref', ref: 'HEAD' },
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      assert.ok(
+        !openTabTitles().includes('Mermaid Compare'),
+        `a missing file should leave no panel, saw: ${openTabTitles().join(', ')}`
+      );
+    });
   });
 
   it('reads a file at HEAD through the built-in git extension', async () => {
