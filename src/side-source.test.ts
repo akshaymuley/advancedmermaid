@@ -1,22 +1,60 @@
 import { describe, it, expect } from 'vitest';
-import { followsEditor } from './side-source';
+import { tracksDocument, type SideTarget } from './side-source';
 
-const tree = { kind: 'workingTree' } as const;
-const ref = (name: string) => ({ kind: 'ref', ref: name }) as const;
+const target = (path: string, source: SideTarget['source']): SideTarget => ({
+  uri: { toString: () => `file:///repo/${path}`, fsPath: `/repo/${path}` },
+  kind: path.endsWith('.md') ? 'markdown' : 'mermaid',
+  source,
+});
 
-describe('followsEditor', () => {
-  it('follows the editor when a pane shows the working tree', () => {
-    expect(followsEditor({ left: ref('HEAD'), right: tree })).toBe(true);
-    expect(followsEditor({ left: tree, right: ref('HEAD') })).toBe(true);
+const tree = (path: string) => target(path, { kind: 'workingTree' });
+const at = (path: string, ref: string) => target(path, { kind: 'ref', ref });
+
+describe('tracksDocument', () => {
+  it('tracks the file a working-tree pane is showing', () => {
+    const targets = { left: at('diagram.mmd', 'HEAD'), right: tree('diagram.mmd') };
+
+    expect(tracksDocument(targets, 'file:///repo/diagram.mmd')).toBe(true);
   });
 
-  it('does not follow the editor for a comparison between two refs', () => {
-    // A fixed pair of commits. Editing the file says nothing about either side.
-    expect(followsEditor({ left: ref('v1.0.0'), right: ref('main') })).toBe(false);
+  it('tracks either side, whichever holds the working tree', () => {
+    const targets = { left: tree('diagram.mmd'), right: at('diagram.mmd', 'HEAD') };
+
+    expect(tracksDocument(targets, 'file:///repo/diagram.mmd')).toBe(true);
   });
 
-  it('does not follow the editor even when both refs are HEAD', () => {
+  it('tracks both files of a two-file comparison', () => {
+    const targets = { left: tree('old.md'), right: tree('new.mmd') };
+
+    expect(tracksDocument(targets, 'file:///repo/old.md')).toBe(true);
+    expect(tracksDocument(targets, 'file:///repo/new.mmd')).toBe(true);
+  });
+
+  it('ignores a document neither pane is showing', () => {
+    const targets = { left: at('diagram.mmd', 'HEAD'), right: tree('diagram.mmd') };
+
+    expect(tracksDocument(targets, 'file:///repo/elsewhere.mmd')).toBe(false);
+  });
+
+  it('ignores edits to the file behind a comparison between two refs', () => {
+    // A fixed pair of commits. Editing the file says nothing about either side, so reacting
+    // would re-render the panel under the user for no reason.
+    const targets = { left: at('diagram.mmd', 'v1.0.0'), right: at('diagram.mmd', 'main') };
+
+    expect(tracksDocument(targets, 'file:///repo/diagram.mmd')).toBe(false);
+  });
+
+  it('ignores edits even when both refs are HEAD', () => {
     // HEAD is still a commit, not the working tree.
-    expect(followsEditor({ left: ref('HEAD'), right: ref('HEAD') })).toBe(false);
+    const targets = { left: at('diagram.mmd', 'HEAD'), right: at('diagram.mmd', 'HEAD') };
+
+    expect(tracksDocument(targets, 'file:///repo/diagram.mmd')).toBe(false);
+  });
+
+  it('tracks only the working-tree side when the other ref pane shows a different file', () => {
+    const targets = { left: at('old.md', 'v1.0.0'), right: tree('new.mmd') };
+
+    expect(tracksDocument(targets, 'file:///repo/new.mmd')).toBe(true);
+    expect(tracksDocument(targets, 'file:///repo/old.md')).toBe(false);
   });
 });

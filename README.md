@@ -11,8 +11,9 @@ Git diffs of Mermaid show text changes, but a one-line edit can completely rearr
 - **Compare Diagram with HEAD** — one click in the editor title bar to see the working-tree version next to the last committed version.
 - **Compare Diagram with Ref...** — compare against any branch, tag, or commit.
 - **Compare Diagram Between Refs...** — compare two refs against each other, with no working tree involved. Review a diagram change on a branch without checking it out. Both sides are picked from the repository's real branches and tags.
+- **Compare Diagram with File...** — compare two *different* files, not two versions of one. Pick the other file from the workspace, or browse to anything on disk. Both panes follow your edits.
 - **Markdown support** — compare ```` ```mermaid ```` blocks in `.md` files. When a file holds several, pick which one from a list labelled by the heading above each.
-- **Several comparisons at once** — each file, ref, and diagram gets its own tab, so you can line two of them up. Re-running the same comparison brings its tab forward instead of opening a duplicate.
+- **Several comparisons at once** — each pair of files, refs, and diagrams gets its own tab, so you can line two of them up. Re-running the same comparison brings its tab forward instead of opening a duplicate.
 - SCM view integration — right-click a changed file in the Source Control panel.
 - Diagrams open **fitted** to their panes. Zoom with the wheel, the buttons, or `+`/`-`/`0`.
 - Pan & zoom stay **synced** across both panes — or unlock them to inspect each side on its own.

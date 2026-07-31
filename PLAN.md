@@ -4,12 +4,12 @@ Iterative delivery plan for the extension. Each milestone is independently shipp
 it ends with a working `.vsix` and a version bump. Order is deliberate — earlier
 milestones remove friction that later ones would otherwise pay repeatedly.
 
-**Status:** v1.0.1 published as **Advanced Mermaid** (`AkshayDMuley.advanced-mermaid`), with
-Markdown fence support merged and awaiting a v1.1.0 release. Renders two refs side-by-side, opens
-framed, follows edits to the compared file, and reports git failures by kind. Panes pan/zoom
-together or independently, and each comparison gets its own tab. Either pane can be the working
-tree or any ref. Milestones 1–4 complete; Milestone 5 has everything but the two-arbitrary-files
-item.
+**Status:** v1.0.1 published as **Advanced Mermaid** (`AkshayDMuley.advanced-mermaid`). Seven
+entries sit in `[Unreleased]` awaiting a v1.1.0 release. Renders two diagrams side-by-side, opens
+framed, follows edits to whichever files it is showing, and reports git failures by kind. Panes
+pan/zoom together or independently, and each comparison gets its own tab. Each pane names its own
+file, diagram, and version, so a comparison can span two refs or two files. Milestones 1–5
+complete; **v1.1.0 is releasable**, and Milestone 6 is next.
 
 ---
 
@@ -17,10 +17,10 @@ item.
 
 | File | Lines | Role |
 |---|---|---|
-| `src/extension.ts` | 220 | Three commands, fence and ref pickers, `compare` orchestration |
+| `src/extension.ts` | 380 | Four commands, fence/ref/file pickers, side resolution, `compare` orchestration |
 | `src/git.ts` | 61 | Reads a file at a ref and lists refs; throws a classified `GitFailureError` |
 | `src/git-errors.ts` | 73 | Pure failure classification + user-facing messages |
-| `src/comparePanel.ts` | 217 | Webview panel registry, CSP shell, edit tracking + refresh |
+| `src/comparePanel.ts` | 225 | Webview panel registry, CSP shell, per-side edit tracking + refresh |
 | `src/debounce.ts` | 45 | Pure debounce with `cancel()` / `flush()` |
 | `src/webview/main.ts` | 304 | Mermaid render, per-pane pan/zoom, last-good-render fallback |
 | `src/webview/view-math.ts` | 78 | Pure fit / zoom-anchor / clamp maths |
@@ -33,11 +33,12 @@ item.
 | `src/mermaid-file.ts` | 28 | `classifySource()` — pure file-type guard (mermaid vs markdown) |
 | `src/mermaid-fences.ts` | 73 | Pure ```mermaid fence parser for Markdown |
 | `src/diagram-selection.ts` | 24 | Picks the diagram a side shows; the one place both sides agree |
-| `src/panel-key.ts` | 32 | Pure panel identity: file + both sources + fence |
-| `src/side-source.ts` | 20 | Where a pane's diagram comes from; `followsEditor` |
-| `src/panel-title.ts` | 37 | Pure tab-title rules |
+| `src/panel-key.ts` | 24 | Pure panel identity: both sides' file + fence + source |
+| `src/side-source.ts` | 42 | What one pane shows — file, kind, fence, source; `tracksDocument` |
+| `src/panel-title.ts` | 78 | Pure tab-title rules + `fileLabels` disambiguation |
 | `src/ref-list.ts` | 46 | Pure ordering/dedup of branch and tag choices |
-| `src/test/vscode-mock.ts` | 66 | Shared `vscode` module mock (aliased in `vitest.config.ts`) |
+| `src/file-list.ts` | 60 | Pure ordering/dedup of the other-file choices + `excludeGlob` |
+| `src/test/vscode-mock.ts` | 75 | Shared `vscode` module mock (aliased in `vitest.config.ts`) |
 
 Build is esbuild (two bundles: node CJS extension + IIFE browser webview).
 CI runs `typecheck` + `test` + `build` on every PR. `main` is PR-protected.
@@ -184,16 +185,34 @@ Split in two: everything *up to* the tag, then the publish itself.
       committed and absent at HEAD.
 - [x] **Compare two arbitrary refs** (not just working tree vs. ref). Both panes now describe
       where they come from (`src/side-source.ts`), so "working tree vs. ref" stopped being baked
-      into the panel: `LoadSide` takes a source and the refresh paths ask each side what it is.
+      into the panel: `LoadSide` takes one side and the refresh paths ask each side what it is.
       A ref-vs-ref comparison is a fixed pair of commits, so it deliberately does **not** follow
       edits to the file.
       Refs are picked from the repository's real branches and tags. A probe of the running
       extension host corrected the plan here: `repository.state.refs` is empty in a fresh window,
       so `getRefs()` has to be called — the second time an assumption about this API would have
       shipped broken, and the first time it was caught before writing the code on top of it.
-- [ ] **Compare two arbitrary files.**
-- [x] Multiple concurrent panels instead of the current singleton. Keyed by **file + ref + fence**
-      (`src/panel-key.ts`), not by source URI as originally written — URI alone would have
+- [x] **Compare two arbitrary files.** The last thing baked into the panel was *which file*:
+      one `uri` and one `fence` served both panes. A pane is now a whole `SideTarget` — file,
+      kind, fence, source (`src/side-source.ts`) — and `panelKey`, `panelTitle` and the refresh
+      paths read it per side, so an edit refreshes the pane showing *that* file. The other file
+      is picked from open editors first, then the workspace, then a browse dialog
+      (`src/file-list.ts` orders the choices, mirroring `ref-list.ts`).
+      Resolution is deliberately asymmetric: the same file on both sides is classified and asked
+      about **once**, because asking which diagram twice about one file is asking the same
+      question twice; two different files number their diagrams independently and are asked
+      separately. Titles gained `fileLabels` — versioned copies of a diagram are the obvious
+      two-file comparison, and `diagram.mmd ↔ diagram.mmd` would say nothing, so equal names
+      borrow their folder.
+      Two things only the manual pass could find, both invisible to every automated suite because
+      both are about what the user *sees*: the picker was hardcoding `**/node_modules/**` as its
+      exclude, which **replaces** VS Code's own exclude settings rather than adding to them, so a
+      workspace with build output in it filled the list with artifacts (`excludeGlob` now layers
+      `files.exclude` under `search.exclude`, as the Search view does); and both pane headers read
+      "Working Tree", which says nothing when the two panes are different files — they now name
+      the file they are showing.
+- [x] Multiple concurrent panels instead of the current singleton. Keyed by **file + both sources
+      + fence** (`src/panel-key.ts`), not by source URI as originally written — URI alone would have
       re-created the very collision the item exists to remove, since the Markdown work made two
       diagrams in one file the ordinary case. Parts are length-prefixed rather than joined by a
       separator, because a ref is whatever the user typed and plain concatenation lets the same

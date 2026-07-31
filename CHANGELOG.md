@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Compare two different files.** A new **Compare Diagram with File...** command compares a
+  diagram against one in another file rather than against another version of the same file —
+  a diagram against the copy it was forked from, or an `.mmd` against a block inside a `.md`.
+  The other file is picked from the workspace, with open files listed first and a browse option
+  for anything outside it; the list respects your `files.exclude` and `search.exclude` settings,
+  as the Search view does. Each pane names its file and follows edits to it, and a file holding
+  several diagrams is asked about separately.
 - **Compare a diagram between two refs.** A new **Compare Diagram Between Refs...** command
   compares any two branches, tags, or commits directly — no working tree involved, so you can
   review a diagram change on someone else's branch without checking it out. Both refs are chosen
