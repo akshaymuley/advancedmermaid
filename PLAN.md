@@ -9,7 +9,8 @@ entries sit in `[Unreleased]` awaiting a v1.1.0 release. Renders two diagrams si
 framed, follows edits to whichever files it is showing, and reports git failures by kind. Panes
 pan/zoom together or independently, and each comparison gets its own tab. Each pane names its own
 file, diagram, and version, so a comparison can span two refs or two files. Milestones 1–5
-complete; **v1.1.0 is releasable**, and Milestone 6 is next.
+complete. v1.1.0 is code-complete but **held**: Open VSX registration must land before it is
+tagged (see Known gaps), so Milestone 6 starts first.
 
 ---
 
@@ -54,6 +55,14 @@ CI runs `typecheck` + `test` + `build` on every PR. `main` is PR-protected.
   every PR yet. Revisit if the webview grows. (`test:integration` *is* in CI.)
 - **No usage feedback yet.** Published, hand-verified from a `.vsix`, but nobody has lived with
   it. Milestone 7's diagram-type priorities are guesses until that changes.
+- **Open VSX is still unregistered, and it gates the next version bump.** No `OVSX_PAT` secret
+  exists and the `AkshayDMuley` namespace returns 404, so the release workflow's Open VSX step has
+  silently skipped on every tag so far. Registration is blocked on Eclipse account creation as of
+  2026-07-31. This is a **hard prerequisite for tagging v1.1.0**, not a nice-to-have: Open VSX does
+  not backfill, so any version tagged before the secret exists can never appear there, and a
+  version number can never be republished. Steps and the `ovsx verify-pat` check are in
+  `RELEASING.md`; the two silent failures are the Eclipse account's GitHub Username field and the
+  unsigned Publisher Agreement.
 - **The published package shipped `.claude/`** in v1.0.0 and v1.0.1 — agent and skill definitions
   users had no reason to download. Fixed in `.vscodeignore`; goes out with the next release.
 
@@ -167,6 +176,8 @@ Split in two: everything *up to* the tag, then the publish itself.
       Username field and the Publisher Agreement are the two things that fail silently if missed.
       Open VSX does not backfill: only tags pushed *after* the secret exists will appear, so
       v1.0.1 and earlier stay Marketplace-only.
+      *Still true at Milestone 5's close, and now a blocker rather than a deferral* — promoted to
+      **Known gaps** above, since nobody reads a ticked box from two milestones ago before tagging.
 
 ## Milestone 5 — Broader inputs (v1.1.0)
 

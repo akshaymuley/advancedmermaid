@@ -37,7 +37,9 @@ jobs:
         run: npx @vscode/vsce package --out "advanced-mermaid-${GITHUB_REF_NAME#v}.vsix"
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        # v3 is the node24 runtime major, matching the pins in ci.yml — v2 declares node20, which
+        # the runner force-runs on 24 and annotates. v3 changes nothing else: same inputs.
+        uses: softprops/action-gh-release@v3
         with:
           files: '*.vsix'
           generate_release_notes: true
