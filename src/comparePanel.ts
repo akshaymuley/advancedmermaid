@@ -165,7 +165,13 @@ export class ComparePanel {
 
     panel.onDidDispose(() => {
       this.disposed = true;
-      ComparePanel.open.delete(this.key);
+      // Only if the registry still points at *this* panel. Disposal is asynchronous, so a
+      // comparison reopened while its old panel is still closing has already registered a new
+      // panel under the same key — and an unconditional delete here evicts the live one, after
+      // which the next identical comparison opens a duplicate instead of revealing it.
+      if (ComparePanel.open.get(this.key) === this) {
+        ComparePanel.open.delete(this.key);
+      }
       this.scheduleRefresh.cancel();
       this.disposables.forEach((d) => d.dispose());
     });

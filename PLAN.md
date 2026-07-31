@@ -69,6 +69,11 @@ CI runs `typecheck` + `test` + `build` on every PR. `main` is PR-protected.
   the way `onCommand:` is for contributed commands, so with `activationEvents: []` the extension
   would never have woken to serve the serializer; and a restored panel has to be filed under its
   `panelKey` like any other, or reopening the same comparison gets a second tab.
+  A third, older bug fell out of the same test, and only on CI: `onDidDispose` deleted its key from
+  the registry unconditionally, so a panel closing while the same comparison was reopening evicted
+  the **new** panel's entry and the next identical comparison opened a duplicate. It now deletes
+  only when the registry still points at itself. Timing-dependent, which is why a Windows machine
+  never showed it and a slower Linux runner did every time.
   The view — pan, zoom and the mode — is deliberately **not** restored: a reloaded panel comes
   back framed and side by side. Carrying that through means the webview merging its own state with
   the host's, which is a separate decision from "the tab still exists".
