@@ -53,6 +53,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Diagrams are drawn in your editor's font.** They had always rendered in mermaid's default
+  Trebuchet MS, a few pixels from a panel drawn in the editor's own font — two typefaces side by
+  side in one view. The font is resolved before mermaid is told about it rather than handed over as
+  `var(--vscode-font-family)`: the variable would look right on screen and then break on export,
+  where an SVG written to a file has nothing to resolve it against and the text falls back to a
+  serif.
 - **Comparing too soon after opening a window could report "not a git repository"** for a file
   that is plainly tracked. The built-in Git extension discovers repositories asynchronously and
   answers "none" until it has finished looking; that answer is now only believed once it says the
