@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { getGitContent, listRefs } from '../../git';
 import { orderRefs } from '../../ref-list';
-import { compare, fromRef, fromTree } from '../../extension';
+import { compare, fromRef, fromTree, restoreComparison } from '../../extension';
 import { writeExport } from '../../comparePanel';
 
 /**
@@ -353,6 +353,93 @@ describe('advanced-mermaid in a real VS Code host', () => {
     // CONTRIBUTING.md is prose only. Markdown is admitted by the `when` clauses now, so "no
     // diagram in here" is a distinct outcome from "wrong file type".
     await assertNoPanelFor('CONTRIBUTING.md');
+  });
+
+  /**
+   * Restoring after a window reload.
+   *
+   * The reload itself cannot be tested from in here — it would kill the run that is asserting on
+   * it — so the seam is `restoreComparison`, which is everything up to VS Code deciding to call
+   * it. That last step is the manual check, as the native save dialog is for export.
+   */
+  describe('restoring a panel after a reload', () => {
+    /** A panel in the state VS Code hands the serializer: created, but with an empty webview. */
+    const restoredPanel = (): vscode.WebviewPanel =>
+      vscode.window.createWebviewPanel(
+        'mermaidCompare',
+        'Mermaid Compare',
+        vscode.ViewColumn.Active,
+        {}
+      );
+
+    const stateFor = (file: string) => ({
+      version: 1,
+      left: { uri: workspaceFile('samples', file).toString(), kind: 'mermaid', source: { kind: 'ref', ref: 'HEAD' } },
+      right: { uri: workspaceFile('samples', file).toString(), kind: 'mermaid', source: { kind: 'workingTree' } },
+    });
+
+    it('rebuilds the comparison the state describes', async () => {
+      await restoreComparison(extensionUri(), restoredPanel(), stateFor('pipeline.mmd'));
+
+      await waitFor('the restored panel to finish its handshake', () =>
+        openTabTitles().includes('Compare: pipeline.mmd')
+      );
+    });
+
+    /**
+     * The registry is keyed by comparison, and a restored panel has to be filed under that key
+     * like any other — otherwise re-running the comparison opens a second tab for it, which is
+     * the collision `panel-key.ts` exists to prevent.
+     */
+    it('files the restored panel under its key, so the same comparison does not open twice', async () => {
+      await restoreComparison(extensionUri(), restoredPanel(), stateFor('pipeline.mmd'));
+      await waitFor('the restored panel', () => openTabTitles().includes('Compare: pipeline.mmd'));
+
+      await vscode.commands.executeCommand(
+        'mermaidCompare.compareWithHead',
+        workspaceFile('samples', 'pipeline.mmd')
+      );
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      const matching = openTabTitles().filter((title) => title === 'Compare: pipeline.mmd');
+      assert.strictEqual(matching.length, 1, `expected one panel, saw ${matching.length}`);
+    });
+
+    it('closes the panel rather than leaving it empty when the state means nothing', async () => {
+      const panel = restoredPanel();
+      await restoreComparison(extensionUri(), panel, { version: 99, left: {}, right: {} });
+
+      // Disposing an already-disposed panel is a no-op; disposing a live one is not, so a panel
+      // still on screen here would show up as a lingering tab.
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      assert.ok(
+        !openTabTitles().includes('Mermaid Compare'),
+        `an unreadable state should leave no panel, saw: ${openTabTitles().join(', ')}`
+      );
+    });
+
+    it('closes the panel when the file it names is gone', async () => {
+      const panel = restoredPanel();
+      await restoreComparison(extensionUri(), panel, {
+        version: 1,
+        left: {
+          uri: workspaceFile('samples', 'deleted-since.mmd').toString(),
+          kind: 'mermaid',
+          source: { kind: 'workingTree' },
+        },
+        right: {
+          uri: workspaceFile('samples', 'deleted-since.mmd').toString(),
+          kind: 'mermaid',
+          source: { kind: 'ref', ref: 'HEAD' },
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      assert.ok(
+        !openTabTitles().includes('Mermaid Compare'),
+        `a missing file should leave no panel, saw: ${openTabTitles().join(', ')}`
+      );
+    });
   });
 
   it('reads a file at HEAD through the built-in git extension', async () => {

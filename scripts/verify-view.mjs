@@ -699,6 +699,44 @@ async function main() {
     await page.click('#refresh');
     check('Refresh posts a refresh message to the host',
       (await page.evaluate(() => window.__posted)).some((m) => m.type === 'refresh'));
+
+    /**
+     * A reload can only restore a panel from what the webview handed to `setState`. The host and
+     * the serializer are the extension host's business, but *whether the webview passes the state
+     * on at all* is browser code, and this is the only place that runs it.
+     */
+    const kept = await page.evaluate(async () => {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: {
+          type: 'compare',
+          title: 'restore me',
+          left: { label: 'HEAD', content: 'flowchart TD\n A --> B' },
+          right: { label: 'Working Tree', content: 'flowchart TD\n A --> C' },
+          state: { version: 1, left: { uri: 'file:///a.mmd' }, right: { uri: 'file:///a.mmd' } },
+        },
+      }));
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return window.__state;
+    });
+    check('a compare message carrying state hands it to setState, so a reload can restore it',
+      kept?.version === 1 && kept?.left?.uri === 'file:///a.mmd', JSON.stringify(kept));
+
+    // Without this guard the first message of every panel — which has no state — would blank
+    // whatever VS Code had kept.
+    const survives = await page.evaluate(async () => {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: {
+          type: 'compare',
+          title: 'no state here',
+          left: { label: 'HEAD', content: 'flowchart TD\n A --> B' },
+          right: { label: 'Working Tree', content: 'flowchart TD\n A --> D' },
+        },
+      }));
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return window.__state;
+    });
+    check('and a message without state leaves what was kept alone',
+      survives?.version === 1, JSON.stringify(survives));
   }
 
   await browser.close();

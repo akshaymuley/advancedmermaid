@@ -30,7 +30,9 @@
     "git"
   ],
   "main": "./dist/extension.js",
-  "activationEvents": [],
+  "activationEvents": [
+    "onWebviewPanel:mermaidCompare"
+  ],
   "contributes": {
     "commands": [
       {

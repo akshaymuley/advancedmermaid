@@ -7,6 +7,7 @@ import { excludeGlob, orderCompareFiles } from './file-list';
 import { classifySource } from './mermaid-file';
 import { Fence, findMermaidFences } from './mermaid-fences';
 import { fileLabels, panelTitle, TitleSide } from './panel-title';
+import { fromPanelState, type SideState } from './panel-state';
 import { orderRefs, RefChoice } from './ref-list';
 import type { SideSource } from './side-source';
 
@@ -74,6 +75,14 @@ export function activate(context: vscode.ExtensionContext): void {
       // The picked file goes left, matching the convention that the other version is the older
       // one — as HEAD is when comparing against the working tree.
       await compare(context.extensionUri, fromTree(other), fromTree(uri));
+    }),
+
+    // Without this, a window reload closes every open comparison: VS Code has nowhere to hand the
+    // panels back to and drops them. The view type must match the one `createWebviewPanel` uses,
+    // or nothing is restored and nothing says why.
+    vscode.window.registerWebviewPanelSerializer(ComparePanel.viewType, {
+      deserializeWebviewPanel: (panel, state: unknown) =>
+        restoreComparison(context.extensionUri, panel, state),
     })
   );
 }
@@ -281,6 +290,55 @@ async function resolveSide({ uri, source }: SideRequest): Promise<ResolvedSide |
 }
 
 /**
+ * The same thing as `resolveSide`, for a side already chosen — a restored panel keeps the diagram
+ * the user picked before the reload, so there is nothing left to ask.
+ *
+ * The fence *count* is recomputed rather than restored with it: it only decides whether the title
+ * names a diagram, the file has to be read to render anyway, and a count saved before the window
+ * closed can be wrong by the time it opens again. Persist the choice; derive what follows.
+ */
+async function describeSide(target: PanelTarget): Promise<ResolvedSide> {
+  if (target.kind === 'mermaid') {
+    return { target, fenceCount: 1 };
+  }
+
+  const document = await vscode.workspace.openTextDocument(target.uri);
+  return { target, fenceCount: findMermaidFences(document.getText()).length };
+}
+
+/**
+ * Rebuild a comparison VS Code is restoring after a window reload.
+ *
+ * Exported for the integration tests: a reload cannot be driven from inside a test run that the
+ * reload would kill, so this is the seam — everything up to VS Code deciding to call it.
+ */
+export async function restoreComparison(
+  extensionUri: vscode.Uri,
+  panel: vscode.WebviewPanel,
+  state: unknown
+): Promise<void> {
+  const restored = fromPanelState(state);
+  if (!restored) {
+    panel.dispose();
+    return;
+  }
+
+  const toTarget = (side: SideState): PanelTarget => ({
+    uri: vscode.Uri.parse(side.uri),
+    kind: side.kind,
+    ...(side.fence === undefined ? {} : { fence: side.fence }),
+    source: side.source,
+  });
+
+  const [left, right] = await Promise.all([
+    describeSide(toTarget(restored.left)),
+    describeSide(toTarget(restored.right)),
+  ]);
+
+  await showComparison(extensionUri, { left, right }, panel);
+}
+
+/**
  * Both sides, resolved.
  *
  * One file compared against itself resolves once and shares the answer: it is the same file, so
@@ -318,7 +376,21 @@ export async function compare(
   if (!resolved) {
     return;
   }
+  return showComparison(extensionUri, resolved);
+}
 
+/**
+ * Everything after the sides are known: read both, title the tab, open the panel.
+ *
+ * Split out from `compare` so restoring a panel can reach it. A restored panel must never touch
+ * anything above this line — the whole of `resolveSides` is QuickPicks, and a window reload has
+ * nobody to ask.
+ */
+async function showComparison(
+  extensionUri: vscode.Uri,
+  resolved: ResolvedSides,
+  restoring?: vscode.WebviewPanel
+): Promise<void> {
   const targets: PanelTargets = { left: resolved.left.target, right: resolved.right.target };
 
   // Two files: a pane header reading "Working Tree" on both sides would say nothing about which
@@ -350,14 +422,19 @@ export async function compare(
             err instanceof Error ? err.message : String(err)
           }`
     );
+    // A panel VS Code restored for us has already been put on screen. Nothing can be rendered into
+    // it, so it goes rather than sitting there empty for the user to close themselves.
+    restoring?.dispose();
     return;
   }
 
-  ComparePanel.show(
-    extensionUri,
-    { targets, title: title(resolved, labels), left, right },
-    loadSide
-  );
+  const data = { targets, title: title(resolved, labels), left, right };
+
+  if (restoring) {
+    ComparePanel.adopt(restoring, extensionUri, data, loadSide);
+    return;
+  }
+  ComparePanel.show(extensionUri, data, loadSide);
 }
 
 const describeFiles = ({ left, right }: PanelTargets): string =>

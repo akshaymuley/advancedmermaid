@@ -8,9 +8,11 @@
 import { PANEL_BODY_HTML } from '../../webview/panel-body';
 
 interface HarnessWindow extends Window {
-  acquireVsCodeApi(): { postMessage(message: unknown): void };
+  acquireVsCodeApi(): { postMessage(message: unknown): void; setState(state: unknown): void };
   /** Everything the webview has posted back to the "host", in order. */
   __posted: unknown[];
+  /** The last state the webview asked VS Code to keep for it across a reload. */
+  __state: unknown;
   /** Post a compare message, exactly as the panel would. */
   __compare(payload: { title: string; left: Side; right: Side }): void;
 }
@@ -26,6 +28,11 @@ harnessWindow.__posted = [];
 harnessWindow.acquireVsCodeApi = () => ({
   postMessage: (message: unknown) => {
     harnessWindow.__posted.push(message);
+  },
+  // Stubbed as well as postMessage, and for the same reason: the webview calls it unconditionally,
+  // so a missing one is a TypeError on the first compare message rather than a missing feature.
+  setState: (state: unknown) => {
+    harnessWindow.__state = state;
   },
 });
 

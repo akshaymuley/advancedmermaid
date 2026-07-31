@@ -24,12 +24,12 @@ flowchart. Only extending it past `flowchart` remains, and that one is waiting o
 
 | File | Lines | Role |
 |---|---|---|
-| `src/extension.ts` | 380 | Four commands, fence/ref/file pickers, side resolution, `compare` orchestration |
+| `src/extension.ts` | 457 | Four commands, fence/ref/file pickers, side resolution, `compare` orchestration |
 | `src/git.ts` | 109 | Reads a file at a ref and lists refs; waits out repository discovery; throws a classified `GitFailureError` |
 | `src/git-errors.ts` | 73 | Pure failure classification + user-facing messages |
-| `src/comparePanel.ts` | 305 | Webview panel registry, CSP shell, per-side edit tracking, refresh, export round trip |
+| `src/comparePanel.ts` | 349 | Webview panel registry, CSP shell, per-side edit tracking, refresh, export round trip |
 | `src/debounce.ts` | 45 | Pure debounce with `cancel()` / `flush()` |
-| `src/webview/main.ts` | 702 | Mermaid render, pan/zoom, mode/divider/blink/semantic wiring, export composition + rasterise |
+| `src/webview/main.ts` | 714 | Mermaid render, pan/zoom, mode/divider/blink/semantic wiring, export composition + rasterise |
 | `src/webview/view-math.ts` | 93 | Pure fit / zoom-anchor / clamp maths + `dividerPercent` |
 | `src/webview/panel-body.ts` | 61 | The panel DOM, shared by the real panel and the harness |
 | `src/webview/view-mode.ts` | 78 | Pure comparison-mode state, its layout category, and its sync interaction |
@@ -39,13 +39,14 @@ flowchart. Only extending it past `flowchart` remains, and that one is waiting o
 | `src/webview/flowchart-merge.ts` | 149 | Pure: a diff back out as one mermaid source, changes styled |
 | `src/webview/diagram-source.ts` | 7 | `isBlankDiagram()` |
 | `src/test/harness/main.ts` | 61 | Boots the webview outside VS Code for Playwright |
-| `scripts/verify-view.mjs` | 716 | `npm run verify:view` — 125 browser checks + screenshots |
+| `scripts/verify-view.mjs` | 754 | `npm run verify:view` — 127 browser checks + screenshots |
 | `scripts/make-vscode-screenshots.mjs` | 254 | Captures `docs/images/` from a real VS Code over CDP |
 | `src/test/screenshots/driver.ts` | 67 | Sequences the panel states for that capture, in-host |
 | `src/mermaid-file.ts` | 28 | `classifySource()` — pure file-type guard (mermaid vs markdown) |
 | `src/mermaid-fences.ts` | 73 | Pure ```mermaid fence parser for Markdown |
 | `src/diagram-selection.ts` | 24 | Picks the diagram a side shows; the one place both sides agree |
 | `src/panel-key.ts` | 24 | Pure panel identity: both sides' file + fence + source |
+| `src/panel-state.ts` | 113 | Pure reload state — what each pane showed, validated on the way back |
 | `src/side-source.ts` | 42 | What one pane shows — file, kind, fence, source; `tracksDocument` |
 | `src/panel-title.ts` | 78 | Pure tab-title rules + `fileLabels` disambiguation |
 | `src/ref-list.ts` | 46 | Pure ordering/dedup of branch and tag choices |
@@ -61,8 +62,16 @@ CI runs `typecheck` + `test` + `build` on every PR. `main` is PR-protected.
 - **Hidden panels stay resident.** `retainContextWhenHidden` keeps each panel's pan/zoom state
   alive, which costs memory once several are open. Dropping it would reset the view every time a
   tab is hidden, so it stays until someone actually feels the cost.
-- **Panels don't survive a window reload.** No `WebviewPanelSerializer` is registered, so a
-  reload closes every comparison. Never handled; more visible now that several can be open.
+- ~~**Panels don't survive a window reload.**~~ **Closed.** A `WebviewPanelSerializer` is
+  registered and each panel keeps a `PanelState` — what each pane was showing — through
+  `setState`, so a reload rebuilds every comparison. Two things this turned up that would each
+  have failed silently: `onWebviewPanel:mermaidCompare` is **not** an implicit activation event
+  the way `onCommand:` is for contributed commands, so with `activationEvents: []` the extension
+  would never have woken to serve the serializer; and a restored panel has to be filed under its
+  `panelKey` like any other, or reopening the same comparison gets a second tab.
+  The view — pan, zoom and the mode — is deliberately **not** restored: a reloaded panel comes
+  back framed and side by side. Carrying that through means the webview merging its own state with
+  the host's, which is a separate decision from "the tab still exists".
 - **`verify:view` is not in CI.** It needs a ~130 MB Chromium download, which isn't worth it on
   every PR yet. Revisit if the webview grows. (`test:integration` *is* in CI.)
 - **No usage feedback yet.** Published, hand-verified from a `.vsix`, but nobody has lived with
