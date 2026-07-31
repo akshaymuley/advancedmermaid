@@ -25,25 +25,43 @@ Open VSX serves VSCodium, Cursor, Gitpod, and Windsurf, which cannot reach the M
 Marketplace. The release workflow publishes there too, and skips it silently while `OVSX_PAT` is
 absent — exactly like `VSCE_PAT`.
 
-**Not set up yet.** The steps below have not been done, so nothing is published to Open VSX
-today. Note that it does not backfill: whenever you do complete them, only tags pushed afterwards
-appear there.
+**Not set up yet, and blocked.** As of 2026-07-31 the namespace does not exist
+(`https://open-vsx.org/api/-/namespace/AkshayDMuley` returns 404) and no `OVSX_PAT` secret is
+configured, so nothing has been published there. Registration is stalled on Eclipse account
+creation. Because of the no-backfill rule above, **this must be finished before the next version
+bump** if v1.1.0 is to reach VSCodium, Cursor, Gitpod, and Windsurf at all.
 
-1. **Sign in** at [open-vsx.org](https://open-vsx.org) with GitHub.
-2. **Sign the Eclipse Foundation Publisher Agreement.** Profile → *Publisher Agreement*. This is
+1. **Create an Eclipse account** at [accounts.eclipse.org](https://accounts.eclipse.org), and set
+   the **GitHub Username** field in your profile to your GitHub handle. Open VSX identifies you by
+   that mapping; leave it blank and you can still log in and mint a token, and publishing fails
+   later with what looks like a permissions error.
+2. **Sign in** at [open-vsx.org](https://open-vsx.org) with GitHub.
+3. **Sign the Eclipse Foundation Publisher Agreement.** Profile → *Publisher Agreement*. This is
    the step that bites: the token authenticates fine without it and publishing still fails.
-3. **Create an access token** from your profile → *Access Tokens*. Copy it; shown once.
-4. **Claim the namespace**, once, from your machine — it must match `publisher` in
+4. **Create an access token** from your profile → *Access Tokens*. Copy it; shown once.
+5. **Claim the namespace**, once, from your machine — it must match `publisher` in
    `package.json`:
 
    ```bash
    npx ovsx create-namespace AkshayDMuley -p <token>
    ```
 
-5. **Add the secret** as `OVSX_PAT`, the same way as `VSCE_PAT` above.
+6. **Verify before trusting it.** This is the check that catches steps 1 and 3 having been missed,
+   at a point where the fix is still free:
+
+   ```bash
+   npx ovsx verify-pat AkshayDMuley -p <token>
+   ```
+
+7. **Add the secret** as `OVSX_PAT`, the same way as `VSCE_PAT` above (`gh secret set OVSX_PAT`
+   prompts for the value, which keeps the token out of your shell history).
 
 ## Each release
 
+0. **If Open VSX matters for this version, register *first*.** Open VSX does not backfill: only
+   tags pushed after `OVSX_PAT` exists ever appear there, and a version number can never be
+   republished. Check with `gh secret list` — if `OVSX_PAT` isn't there, either complete the setup
+   below or accept that this version stays Marketplace-only, permanently.
 1. Confirm the extension actually works in a real VS Code — `npm run test:integration`, plus an
    F5 pass over anything that changed visually.
 2. Bump `version` in `package.json`.
