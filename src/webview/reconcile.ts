@@ -4,6 +4,12 @@ export type ChangeKind = 'added' | 'removed' | 'changed' | 'unchanged';
 export interface Reconciled<T> {
   kind: ChangeKind;
   item: T;
+  /**
+   * The item this one matched in the older version, when it matched anything — present for
+   * `unchanged` as well as `changed`. A caller reporting "what it used to be" wants only the
+   * changed ones; a caller that has to recurse into the pair (a block against the block it
+   * matched) needs the unchanged ones too.
+   */
   was?: T;
 }
 
@@ -41,7 +47,9 @@ export function reconcile<T>(
     if (!was) {
       return { kind: 'added', item };
     }
-    return same(was, item) ? { kind: 'unchanged', item } : { kind: 'changed', item, was };
+    return same(was, item)
+      ? { kind: 'unchanged', item, was }
+      : { kind: 'changed', item, was };
   });
 
   // Walk the older version in order, keeping a cursor just past the last entry that survived, and
