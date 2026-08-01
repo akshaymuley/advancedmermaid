@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.1] — 2026-08-01
+
+Listing and documentation only — no behaviour change. The Marketplace and Open VSX read the README,
+title and keywords from the published package, so these reach anyone only through a release.
+
+### Changed
+
+- **An animated demo** replaces the still screenshot at the top of the README. Overlay, swipe,
+  blink and the merged semantic view are motion; a still could never show them. Recorded from a
+  real VS Code by `npm run make:demo`.
+- **The extension is now titled "Advanced Mermaid: Visual Diff"**, which says what it does. The
+  identifier is unchanged, so this is the same extension and updates normally.
+- Keywords and a gallery banner, so the listing is findable by what people actually search for.
+
 ## [2.0.0] — 2026-08-01
 
 The first release since 1.0.1, and three milestones' worth in one: broader inputs (Markdown,
@@ -199,7 +213,8 @@ Release readiness. Not published to the Marketplace.
 - Rejects files that aren't `.mmd` / `.mermaid`, including via the command palette.
 - Mermaid is bundled — the extension works offline.
 
-[Unreleased]: https://github.com/akshaymuley/AdvancedMermaid/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/akshaymuley/AdvancedMermaid/compare/v2.0.1...HEAD
+[2.0.1]: https://github.com/akshaymuley/AdvancedMermaid/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/akshaymuley/AdvancedMermaid/compare/v1.0.1...v2.0.0
 [1.0.1]: https://github.com/akshaymuley/AdvancedMermaid/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/akshaymuley/AdvancedMermaid/compare/v0.4.0...v1.0.0

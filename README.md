@@ -1,10 +1,14 @@
-# Advanced Mermaid
+# Advanced Mermaid: Visual Diff
 
-**Compare rendered Mermaid diagrams instead of code.**
+**A one-line edit to a Mermaid diagram can rearrange the whole picture. The text diff won't tell
+you that. This will.**
 
-Git diffs of Mermaid show text changes, but a one-line edit can completely rearrange a rendered diagram. This VS Code extension shows you the *visual* difference: the old and new versions rendered side by side, with synced pan and zoom. Works on `.mmd` files and on ```` ```mermaid ```` blocks inside Markdown.
+![Side by side, overlay, swipe, blink, and one merged diagram with the changes marked](https://raw.githubusercontent.com/akshaymuley/AdvancedMermaid/main/docs/images/demo.gif)
 
-![Two versions of a deploy pipeline diagram side by side, the right one with extra steps](https://raw.githubusercontent.com/akshaymuley/AdvancedMermaid/main/docs/images/compare.png)
+Compare a diagram against any git ref — or against another file — and see the **rendered**
+difference: side by side, stacked and faded, split at a divider, blinked between, or merged into
+**one diagram with the changes marked on it**. Works on `.mmd` files and on ```` ```mermaid ````
+blocks inside Markdown.
 
 ## Install
 

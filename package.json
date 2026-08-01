@@ -1,8 +1,8 @@
 {
   "name": "advanced-mermaid",
-  "displayName": "Advanced Mermaid",
-  "description": "Compare rendered Mermaid diagrams instead of code — side-by-side visual diff against any git ref.",
-  "version": "2.0.0",
+  "displayName": "Advanced Mermaid: Visual Diff",
+  "description": "Visual diff for Mermaid diagrams — compare the rendered picture across any git ref, or merge both versions into one marked-up diagram.",
+  "version": "2.0.1",
   "publisher": "AkshayDMuley",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -24,10 +24,21 @@
   ],
   "keywords": [
     "mermaid",
+    "mermaid diff",
+    "visual diff",
     "diagram",
+    "diagram compare",
     "diff",
     "compare",
-    "git"
+    "git",
+    "git diff",
+    "code review",
+    "flowchart",
+    "sequence diagram",
+    "class diagram",
+    "markdown",
+    "diagrams as code",
+    "documentation"
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
@@ -103,7 +114,8 @@
     "make:screenshots": "node esbuild.js && node scripts/make-screenshots.mjs",
     "make:screenshots:vscode": "node esbuild.js && node scripts/make-vscode-screenshots.mjs",
     "test:watch": "vitest",
-    "vscode:prepublish": "npm run build"
+    "vscode:prepublish": "npm run build",
+    "make:demo": "node esbuild.js && node scripts/make-demo.mjs"
   },
   "dependencies": {
     "mermaid": "^11.6.0"
@@ -115,10 +127,16 @@
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.1.0",
     "esbuild": "^0.28.1",
+    "gifenc": "^1.0.3",
     "jsdom": "^29.1.1",
     "mocha": "^11.7.6",
     "playwright": "^1.62.0",
+    "pngjs": "^7.0.0",
     "typescript": "^5.5.0",
     "vitest": "^4.1.10"
+  },
+  "galleryBanner": {
+    "color": "#1a1d25",
+    "theme": "dark"
   }
 }
