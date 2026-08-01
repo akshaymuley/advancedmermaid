@@ -13,7 +13,7 @@ Git diffs of Mermaid show text changes, but a one-line edit can completely rearr
 - **Compare Diagram Between Refs...** — compare two refs against each other, with no working tree involved. Review a diagram change on a branch without checking it out. Both sides are picked from the repository's real branches and tags.
 - **Compare Diagram with File...** — compare two *different* files, not two versions of one. Pick the other file from the workspace, or browse to anything on disk. Both panes follow your edits.
 - **Markdown support** — compare ```` ```mermaid ```` blocks in `.md` files. When a file holds several, pick which one from a list labelled by the heading above each.
-- **Several comparisons at once** — each pair of files, refs, and diagrams gets its own tab, so you can line two of them up. Re-running the same comparison brings its tab forward instead of opening a duplicate.
+- **Several comparisons at once** — each pair of files, refs, and diagrams gets its own tab, so you can line two of them up. Re-running the same comparison brings its tab forward instead of opening a duplicate, and however many you have arranged come back after a window reload.
 - SCM view integration — right-click a changed file in the Source Control panel.
 - **Overlay mode** — stack the two renders and fade between them with a slider. A node that moved
   a few pixels is obvious superimposed and nearly invisible across a gap.
