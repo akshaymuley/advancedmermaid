@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Semantic mode now reads class diagrams too.** A merged `classDiagram` tints the classes that
+  changed — green for new, red for gone, amber for altered — and says everything else in words,
+  because that is all mermaid allows there. A field or method carries its own change on its line
+  (`+String age [was +int age]`, `+sleep() void [added]`), and a relationship carries its change in
+  its label (`fed by (changed)`). A member keeps its identity when its type changes, so retyping a
+  field reads as one change rather than as a deletion plus an addition — the same for a method
+  whose arguments changed.
+  Diagrams using `namespace` fall back to the two versions side by side, since a namespace groups
+  classes and redrawing one without understanding it would regroup the diagram.
 - **Semantic mode now reads sequence diagrams too.** A merged `sequenceDiagram` marks its changes
   with coloured bands rather than outlines — added messages green, removed ones red and kept where
   they used to sit in the exchange, reworded ones amber carrying what they used to say

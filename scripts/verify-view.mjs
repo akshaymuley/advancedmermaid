@@ -44,9 +44,33 @@ const SEQUENCE_AFTER = `sequenceDiagram
     S ->> S: Reserve stock
   end`;
 
-/** Nothing either reader understands, so semantic must fall back and say why. */
-const UNDIFFABLE_BEFORE = 'classDiagram\n  Animal <|-- Duck';
-const UNDIFFABLE_AFTER = 'classDiagram\n  Animal <|-- Dog';
+// A class diagram: a retyped field, an added method, an added class, a removed one, and a
+// relationship whose arrow changed.
+const CLASS_BEFORE = `classDiagram
+  class Animal {
+    +int age
+    +mate() bool
+  }
+  class Fish
+  Animal <|-- Fish
+  Animal --> Keeper : fed by`;
+const CLASS_AFTER = `classDiagram
+  class Animal {
+    +String age
+    +mate(Animal other) bool
+    +sleep() void
+  }
+  class Duck
+  Animal <|-- Duck
+  Animal *-- Keeper : fed by`;
+
+/**
+ * Nothing any reader understands, so semantic must fall back and say why. This fixture has now
+ * been replaced twice — it was a sequence diagram until sequence diagrams became diffable, then a
+ * class diagram until this change. An ER diagram is the current answer.
+ */
+const UNDIFFABLE_BEFORE = 'erDiagram\n  CUSTOMER ||--o{ ORDER : places';
+const UNDIFFABLE_AFTER = 'erDiagram\n  CUSTOMER ||--o{ INVOICE : places';
 
 let failures = 0;
 let checks = 0;
@@ -646,8 +670,56 @@ async function main() {
     check('exporting a merged sequence diagram writes the merged one, not the two versions',
       sequenceDoc.nested === 1, `nested svg: ${sequenceDoc.nested}`);
 
-    // The fallback. A class diagram can be read by neither parser, and the mode must say so rather
-    // than showing an empty pane.
+    /**
+     * And over a class diagram, which marks its changes a third way again. The probe that settled
+     * this found `classDef` + `cssClass` — the obvious flowchart-shaped route — parses, renders,
+     * and applies no style at all; only `style X …` works, and relationships cannot be styled
+     * whatsoever (`linkStyle` is a parse error here). So this is the check that matters: the
+     * marks have to reach the DOM, not merely the source.
+     */
+    await compare(page, CLASS_BEFORE, CLASS_AFTER);
+    await settle(page);
+
+    check('a class diagram merges rather than falling back',
+      (await page.isVisible('#merged-viewport')) && !(await page.isVisible('#semantic-notice')));
+    check('mermaid accepted the generated class source and drew it',
+      await page.evaluate(() => !!document.querySelector('#merged-viewport svg')));
+
+    const classText = await mergedText();
+    check('the merged diagram holds classes from both versions',
+      classText.includes('Duck') && classText.includes('Fish'), classText);
+    check('and says what a retyped field used to be',
+      classText.includes('was +int age'), classText);
+    // Only the arrow moved on this one, so there is no old label to report and the marker is the
+    // bare kind. Both forms matter: `(was …)` when the label changed, `(changed)` when it didn't.
+    check('and marks a changed relationship in its label, the only place a class diagram allows',
+      classText.includes('fed by (changed)'), classText.slice(-400));
+    check('and marks the added and removed relationships the same way',
+      classText.includes('(added)') && classText.includes('(removed)'), classText.slice(-400));
+
+    /**
+     * The check the whole probe exists for. `style` does not reach the box as an inline attribute —
+     * mermaid compiles it into a generated stylesheet rule (`.Animal>* { … !important }`) — so this
+     * reads the *computed* style. That is also what makes it a real test: the `classDef` route this
+     * replaced emits perfectly good source, renders without error, and computes to nothing.
+     */
+    const styledBoxes = await page.evaluate(() =>
+      [...document.querySelectorAll('#merged-viewport g.classGroup, #merged-viewport g.node')]
+        .filter((g) =>
+          [...g.querySelectorAll('rect, path, polygon')].some(
+            (el) => getComputedStyle(el).strokeWidth === '3px'))
+        .length);
+    check('the changed classes are actually styled in the render, not just in the source',
+      styledBoxes >= 3, `styled boxes: ${styledBoxes}`);
+
+    await page.screenshot({ path: path.join(shots, '9c-semantic-class.png') });
+
+    const classDoc = await describeSvg((await exportNow('svg'))?.data ?? '');
+    check('exporting a merged class diagram writes the merged one, not the two versions',
+      classDoc.nested === 1, `nested svg: ${classDoc.nested}`);
+
+    // The fallback. An ER diagram is read by no parser, and the mode must say so rather than
+    // showing an empty pane.
     await compare(page, UNDIFFABLE_BEFORE, UNDIFFABLE_AFTER);
     await settle(page);
     check('an undiffable pair falls back to both versions side by side',
