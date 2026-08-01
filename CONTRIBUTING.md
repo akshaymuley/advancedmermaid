@@ -17,8 +17,9 @@ Thanks for your interest! All contributions are welcome — bug reports, feature
   activation, command registration, the panel/webview handshake, and the built-in git API.
   Downloads VS Code on first run and opens a window for a few seconds. Runs in CI.
 - `npm run verify:view` — loads the real webview in Chromium via `harness/index.html` and
-  exercises fit/zoom/sync, writing screenshots to `dist/view-screenshots/`. Needs a one-time
-  `npx playwright install chromium`. Not run in CI.
+  exercises fit/zoom/sync/modes, writing screenshots to `dist/view-screenshots/`. Needs a one-time
+  `npx playwright install chromium`. Runs in CI, where a failure uploads those screenshots as an
+  artifact — worth downloading before trying to reproduce a view failure locally.
 - Open `harness/index.html` in a browser after `npm run compile` to poke at the webview by hand,
   without launching VS Code.
 
