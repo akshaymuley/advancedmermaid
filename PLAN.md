@@ -9,14 +9,15 @@ diagrams side-by-side, opens framed, follows edits to whichever files it is show
 failures by kind. Panes pan/zoom together or independently, and each comparison gets its own tab.
 Each pane names its own file, diagram, and version, so a comparison can span two refs or two files.
 The two versions can also be stacked — faded, split at a divider, or blinked between — and exported
-as SVG or PNG, either side by side or as the merged diff. **Milestones 1–6 complete.**
+as SVG or PNG, either side by side or as the merged diff. **Milestones 1–7 complete.**
 
 Everything since v1.0.1 sits in `[Unreleased]` — two milestones' worth, since nothing has been
 tagged in between. Whether that ships as one version or as v1.1.0 followed by v1.2.0 is a decision
 for release time; either way it is **held** on Open VSX registration (see Known gaps). Milestone 7
-is all but done: flowcharts **and sequence diagrams** are parsed, diffed, and rendered as **one
-merged diagram** with the changes marked, falling back to side by side for anything else. Only
-`classDiagram` remains, and that one is waiting on demand.
+is **complete**: flowcharts, sequence diagrams and class diagrams are each parsed, diffed, and
+rendered as **one merged diagram** with the changes marked, falling back to side by side for
+anything else. Each type marks its changes the way mermaid actually allows — which took a probe
+to establish, every time.
 
 ---
 
@@ -37,14 +38,17 @@ merged diagram** with the changes marked, falling back to side by side for anyth
 | `src/webview/flowchart-parse.ts` | 392 | Pure `flowchart`/`graph` source → nodes, edges, subgraphs; `null` for anything else |
 | `src/webview/flowchart-diff.ts` | 84 | Pure graph diff — added / removed / changed, in a stable order |
 | `src/webview/flowchart-merge.ts` | 149 | Pure: a diff back out as one mermaid source, changes styled |
-| `src/webview/reconcile.ts` | 93 | Pure list matching + removal placement, shared by both diffs |
+| `src/webview/reconcile.ts` | 93 | Pure list matching + removal placement, shared by all three diffs |
 | `src/webview/sequence-parse.ts` | 297 | Pure `sequenceDiagram` source → participants, messages, notes, nested blocks; `null` for anything else |
 | `src/webview/sequence-diff.ts` | 245 | Pure sequence diff — anchored messages, recursion through blocks |
 | `src/webview/sequence-merge.ts` | 159 | Pure: the diff back out as one mermaid source, changes banded in `rect` |
-| `src/webview/semantic-diff.ts` | 78 | Picks the reader, returns the merged source and its legend kinds, or `null` |
+| `src/webview/semantic-diff.ts` | 96 | Picks the reader, returns the merged source and its legend kinds, or `null` |
+| `src/webview/class-parse.ts` | 270 | Pure `classDiagram` source → classes, members, relationships, notes; `null` for anything else |
+| `src/webview/class-diff.ts` | 141 | Pure class diff — classes, members, relationships, notes |
+| `src/webview/class-merge.ts` | 139 | Pure: the diff back out as one mermaid source, classes styled and the rest marked in text |
 | `src/webview/diagram-source.ts` | 7 | `isBlankDiagram()` |
 | `src/test/harness/main.ts` | 61 | Boots the webview outside VS Code for Playwright |
-| `scripts/verify-view.mjs` | 824 | `npm run verify:view` — 136 browser checks + screenshots |
+| `scripts/verify-view.mjs` | 896 | `npm run verify:view` — 144 browser checks + screenshots |
 | `scripts/make-vscode-screenshots.mjs` | 254 | Captures `docs/images/` from a real VS Code over CDP |
 | `src/test/screenshots/driver.ts` | 67 | Sequences the panel states for that capture, in-host |
 | `src/mermaid-file.ts` | 28 | `classifySource()` — pure file-type guard (mermaid vs markdown) |
@@ -445,7 +449,31 @@ rendering, a test harness, and real usage feedback to know which diagram types m
       cast. Falling back says "I can't diff this"; that would say something false.
       A pair whose diagram *type* changed between versions also falls back — that is a rewrite, not
       a diff, and merging it would mean reinterpreting one version in the other's terms.
-- [ ] Extend to `classDiagram`, based on demand.
+- [x] Extend to `classDiagram`. The third trio — `class-parse.ts` / `class-diff.ts` /
+      `class-merge.ts` — through the same `semantic-diff.ts` seam, which needed one new branch and
+      nothing else. `main.ts` changed by one string, which is the seam paying for itself.
+      **The probe earned its keep for the third time, and hardest here.** `classDef` + `cssClass` —
+      the obvious flowchart-shaped route — *parses, renders, and applies no style whatsoever*.
+      Copying `flowchart-merge.ts` would have shipped a mode that marked nothing while every unit
+      test stayed green, because the source would have been perfectly valid. Only `style X …`
+      works, and mermaid compiles it into a generated stylesheet rule rather than an inline
+      attribute — so the harness check reads *computed* style, which is the only form of the check
+      that can tell the two routes apart.
+      Three more findings, each of which shaped the emitter: **relationships cannot be styled at
+      all** (`linkStyle` is a parse error here), so a changed relationship says so in its label;
+      **a colon inside a relationship label is a parse error**, so no marker may contain one; and
+      **the class box is the finest unit that can be coloured**, so member changes are said in the
+      member's own text in square brackets. A marker on a *method* lands in what mermaid reads as
+      the return-type slot, so the old text has its parentheses stripped — with them it renders a
+      stray trailing `: `.
+      A member's identity is its **identifier**, not its signature: `+int age` → `+String age` is
+      one changed member, and `+mate()` → `+mate(Animal other)` is a changed method. Keying on the
+      text would report the commonest class-diagram edit there is as a removal plus an addition.
+      A class whose members changed is itself `changed`, since the box is the only thing that can
+      carry a colour.
+      `namespace` is refused, as `box` is in sequence and for the same reason: it contains classes,
+      so re-emitting one without modelling it would regroup the diagram.
+      *Milestone 7 is complete.*
 
 ---
 

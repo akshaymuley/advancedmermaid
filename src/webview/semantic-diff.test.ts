@@ -25,8 +25,15 @@ describe('mergeDiagrams', () => {
       expect(result?.source.startsWith('sequenceDiagram')).toBe(true);
     });
 
-    it('refuses a type neither reader understands', () => {
-      expect(merge('classDiagram\n  Animal <|-- Duck', 'classDiagram\n  Animal <|-- Dog')).toBeNull();
+    it('merges two class diagrams', () => {
+      const result = merge('classDiagram\n  Animal <|-- Duck', 'classDiagram\n  Animal <|-- Dog');
+
+      expect(result?.source.startsWith('classDiagram')).toBe(true);
+    });
+
+    it('refuses a type no reader understands', () => {
+      expect(merge('erDiagram\n  CUSTOMER ||--o{ ORDER : places', 'erDiagram\n  CUSTOMER ||--o{ ITEM : places')).toBeNull();
+      expect(merge('stateDiagram-v2\n  [*] --> Idle', 'stateDiagram-v2\n  [*] --> Busy')).toBeNull();
     });
 
     /**
