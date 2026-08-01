@@ -4,18 +4,24 @@ Iterative delivery plan for the extension. Each milestone is independently shipp
 it ends with a working `.vsix` and a version bump. Order is deliberate — earlier
 milestones remove friction that later ones would otherwise pay repeatedly.
 
-**Status:** v1.0.1 published as **Advanced Mermaid** (`AkshayDMuley.advanced-mermaid`). Renders two
+**Status:** **v2.0.0 published** as **Advanced Mermaid** (`AkshayDMuley.advanced-mermaid`), and the
+first version to reach **both registries** — the VS Code Marketplace and Open VSX, which serves
+VSCodium, Cursor, Gitpod and Windsurf. Renders two
 diagrams side-by-side, opens framed, follows edits to whichever files it is showing, and reports git
 failures by kind. Panes pan/zoom together or independently, and each comparison gets its own tab.
 Each pane names its own file, diagram, and version, so a comparison can span two refs or two files.
 The two versions can also be stacked — faded, split at a divider, or blinked between — and exported
 as SVG or PNG, either side by side or as the merged diff. **Milestones 1–7 complete.**
 
-Everything since v1.0.1 is **prepared as v2.0.0** — three milestones' worth (5, 6 and 7) in one
-release, since nothing was tagged in between. The version is bumped and the changelog written; only
-the tag remains, and it is deliberately a hand step. The major bump is for semantic diff: nothing
-in it removes or renames anything, so every 1.x command still behaves as it did. The Open VSX hold
-is **lifted** (see Known gaps). Milestone 7
+v2.0.0 shipped three milestones' worth (5, 6 and 7) in one release, since nothing was tagged in
+between. The major bump is for semantic diff: nothing in it removes or renames anything, so every
+1.x command still behaves as it did.
+
+*Two lags worth knowing before checking a future release.* Neither registry is immediate, and both
+look like failure while they aren't: Open VSX answered **404 for about a minute** after reporting a
+successful publish, and the Marketplace kept serving **1.0.1 for roughly five minutes** — long
+enough that a single check after the workflow goes green reports the wrong answer. Poll until the
+version appears rather than checking once. Milestone 7
 is **complete**: flowcharts, sequence diagrams and class diagrams are each parsed, diffed, and
 rendered as **one merged diagram** with the changes marked, falling back to side by side for
 anything else. Each type marks its changes the way mermaid actually allows — which took a probe
@@ -123,11 +129,12 @@ Code host), and `view` (the browser checks, with a cached Chromium). `main` is P
   namespace exists. It exists because `release.yml` gates both publish steps on `env.X != ''`, so a
   misnamed or misplaced secret skips silently rather than failing — and Open VSX does not backfill,
   so a skipped version can never be published there.
-- **The published package shipped `.claude/`** in v1.0.0 and v1.0.1 — agent and skill definitions
-  users had no reason to download. Fixed in `.vscodeignore`, and the fix ships with v2.0.0. Audited
-  rather than assumed while preparing that release: `vsce ls` and the packaged `.vsix` both hold
-  11 files — readme, licence, changelog, `package.json`, the two `dist` bundles and three `media`
-  files — and nothing from `src/`, `scripts/`, `.claude/` or the test suites.
+- ~~**The published package shipped `.claude/`**~~ **Closed in v2.0.0.** v1.0.0 and v1.0.1 shipped
+  agent and skill definitions every user downloaded. Fixed in `.vscodeignore` at the time, but the
+  fix sat unreleased for three milestones and had therefore never been exercised — so it was
+  audited rather than trusted before tagging: `vsce ls` and the packaged `.vsix` both hold 11 files
+  — readme, licence, changelog, `package.json`, the two `dist` bundles and three `media` files —
+  and nothing from `src/`, `scripts/`, `.claude/` or the test suites.
 
 ---
 
@@ -241,6 +248,10 @@ Split in two: everything *up to* the tag, then the publish itself.
       v1.0.1 and earlier stay Marketplace-only.
       *Still true at Milestone 5's close, and now a blocker rather than a deferral* — promoted to
       **Known gaps** above, since nobody reads a ticked box from two milestones ago before tagging.
+      **Resolved at v2.0.0**, which is the first version on Open VSX; v1.0.1 and earlier remain
+      Marketplace-only, permanently. Part of the delay was a check that could only ever fail:
+      `RELEASING.md` tested the namespace with an endpoint that 404s whether or not it exists, so
+      the registration looked incomplete long after it wasn't.
 
 ## Milestone 5 — Broader inputs (v1.1.0)
 

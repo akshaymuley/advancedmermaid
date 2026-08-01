@@ -6,6 +6,16 @@ Git diffs of Mermaid show text changes, but a one-line edit can completely rearr
 
 ![Two versions of a deploy pipeline diagram side by side, the right one with extra steps](https://raw.githubusercontent.com/akshaymuley/AdvancedMermaid/main/docs/images/compare.png)
 
+## Install
+
+- **VS Code** — search *Advanced Mermaid* in the Extensions view, or
+  [install from the Marketplace](https://marketplace.visualstudio.com/items?itemName=AkshayDMuley.advanced-mermaid).
+- **VSCodium, Cursor, Gitpod, Windsurf** — search there, or
+  [install from Open VSX](https://open-vsx.org/extension/AkshayDMuley/advanced-mermaid).
+
+Both carry the same build. Editors that cannot reach the Microsoft Marketplace are served from
+2.0.0 onward.
+
 ## Features
 
 - **Compare Diagram with HEAD** — one click in the editor title bar to see the working-tree version next to the last committed version.
