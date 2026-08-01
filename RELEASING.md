@@ -25,11 +25,17 @@ Open VSX serves VSCodium, Cursor, Gitpod, and Windsurf, which cannot reach the M
 Marketplace. The release workflow publishes there too, and skips it silently while `OVSX_PAT` is
 absent — exactly like `VSCE_PAT`.
 
-**Not set up yet, and blocked.** As of 2026-07-31 the namespace does not exist
-(`https://open-vsx.org/api/-/namespace/AkshayDMuley` returns 404) and no `OVSX_PAT` secret is
-configured, so nothing has been published there. Registration is stalled on Eclipse account
-creation. Because of the no-backfill rule above, **this must be finished before the next version
-bump** if v1.1.0 is to reach VSCodium, Cursor, Gitpod, and Windsurf at all.
+**Set up as of 2026-08-01.** The `AkshayDMuley` namespace exists, the PAT has been verified with
+`ovsx verify-pat`, and the `OVSX_PAT` secret is configured — so the next tag publishes to both
+registries. The steps below are kept for the next time this has to be done, and because two of
+them fail silently.
+
+> **Check the namespace with `https://open-vsx.org/api/AkshayDMuley`, not
+> `https://open-vsx.org/api/-/namespace/AkshayDMuley`.** The second returns 404 whether or not the
+> namespace exists. This file recommended it for weeks, which is why registration looked incomplete
+> long after it wasn't. A namespace that exists answers `200` with
+> `{"name":"AkshayDMuley","extensions":{…},"verified":false,"access":"restricted"}` — and
+> `verified: false` is normal, an ownership badge rather than a permission to publish.
 
 1. **Create an Eclipse account** at [accounts.eclipse.org](https://accounts.eclipse.org), and set
    the **GitHub Username** field in your profile to your GitHub handle. Open VSX identifies you by
@@ -58,10 +64,16 @@ bump** if v1.1.0 is to reach VSCodium, Cursor, Gitpod, and Windsurf at all.
 
 ## Each release
 
-0. **If Open VSX matters for this version, register *first*.** Open VSX does not backfill: only
-   tags pushed after `OVSX_PAT` exists ever appear there, and a version number can never be
-   republished. Check with `gh secret list` — if `OVSX_PAT` isn't there, either complete the setup
-   below or accept that this version stays Marketplace-only, permanently.
+0. **Run the Release readiness workflow** (Actions → *Release readiness* → *Run workflow*). It
+   reports whether a workflow actually resolves `VSCE_PAT` and `OVSX_PAT`, whether either carries
+   stray whitespace, and whether the Open VSX namespace exists.
+   This exists because `gh secret list` cannot answer the question that matters. Both publish steps
+   in `release.yml` are gated on `if: env.X != ''`, so a secret that is misnamed, empty, or added
+   as an Environment secret rather than an Actions repository secret does not fail the release —
+   it **silently skips**. Open VSX does not backfill and a version number can never be
+   republished, so a skip costs that version permanently.
+   The workflow still cannot prove the token is *accepted*; only `npx ovsx verify-pat` can, and
+   that needs the token itself.
 1. Confirm the extension actually works in a real VS Code — `npm run test:integration`, plus an
    F5 pass over anything that changed visually.
 2. Bump `version` in `package.json`.
