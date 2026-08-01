@@ -11,9 +11,9 @@ Each pane names its own file, diagram, and version, so a comparison can span two
 The two versions can also be stacked — faded, split at a divider, or blinked between — and exported
 as SVG or PNG, either side by side or as the merged diff. **Milestones 1–7 complete.**
 
-Everything since v1.0.1 sits in `[Unreleased]` — two milestones' worth, since nothing has been
-tagged in between. Whether that ships as one version or as v1.1.0 followed by v1.2.0 is a decision
-for release time; either way it is **held** on Open VSX registration (see Known gaps). Milestone 7
+Everything since v1.0.1 sits in `[Unreleased]` — **three** milestones' worth (5, 6 and 7), since
+nothing has been tagged in between. Whether that ships as one version or as several is a decision
+for release time; the Open VSX hold on it is **lifted** (see Known gaps). Milestone 7
 is **complete**: flowcharts, sequence diagrams and class diagrams are each parsed, diffed, and
 rendered as **one merged diagram** with the changes marked, falling back to side by side for
 anything else. Each type marks its changes the way mermaid actually allows — which took a probe
@@ -104,15 +104,23 @@ Code host), and `view` (the browser checks, with a cached Chromium). `main` is P
   `build` was.
 - **No usage feedback yet.** Published, hand-verified from a `.vsix`, but nobody has lived with
   it. Milestone 7's diagram-type priorities are guesses until that changes.
-- **Open VSX is still unregistered, and it gates the next version bump.** No `OVSX_PAT` secret
-  exists and the `AkshayDMuley` namespace returns 404, so the release workflow's Open VSX step has
-  silently skipped on every tag so far. Registration is blocked on Eclipse account creation as of
-  2026-07-31. This is a **hard prerequisite for the next tag, whatever it is numbered**, not a
-  nice-to-have: Open VSX does
-  not backfill, so any version tagged before the secret exists can never appear there, and a
-  version number can never be republished. Steps and the `ovsx verify-pat` check are in
-  `RELEASING.md`; the two silent failures are the Eclipse account's GitHub Username field and the
-  unsigned Publisher Agreement.
+- ~~**Open VSX is still unregistered, and it gates the next version bump.**~~ **Closed 2026-08-01.**
+  The namespace exists, the PAT is verified, and `OVSX_PAT` is configured, so the next tag reaches
+  both registries. The release blocker that stood over three milestones is gone.
+  **Part of that delay was a bad check, not a missing registration.** `RELEASING.md` said to test
+  the namespace with `https://open-vsx.org/api/-/namespace/AkshayDMuley`, which returns 404 whether
+  or not the namespace exists — so the state was reported as unregistered well after it wasn't.
+  `https://open-vsx.org/api/AkshayDMuley` is the endpoint that answers, and both files now say so.
+  Worth remembering as its own lesson: a check that can only ever say "no" reads exactly like a
+  problem that will not go away.
+  The two genuinely silent steps remain the Eclipse account's GitHub Username field and the
+  unsigned Publisher Agreement; `npx ovsx verify-pat` is what catches either, and it is the one
+  thing no workflow can do for you, since it needs the token.
+  A **Release readiness** workflow (`workflow_dispatch`) now covers what *can* be automated:
+  whether a workflow resolves each secret, whether either carries stray whitespace, and whether the
+  namespace exists. It exists because `release.yml` gates both publish steps on `env.X != ''`, so a
+  misnamed or misplaced secret skips silently rather than failing — and Open VSX does not backfill,
+  so a skipped version can never be published there.
 - **The published package shipped `.claude/`** in v1.0.0 and v1.0.1 — agent and skill definitions
   users had no reason to download. Fixed in `.vscodeignore`; goes out with the next release.
 

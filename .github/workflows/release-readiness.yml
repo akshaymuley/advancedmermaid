@@ -1,0 +1,87 @@
+name: Release readiness
+
+# Manual only. Answers the one question `gh secret list` cannot: does a *workflow* resolve these
+# secrets?
+#
+# It matters because of how release.yml is written. Both publish steps are gated on
+# `if: env.X != ''`, so a secret that is misnamed, empty, or added in the wrong place (an
+# Environment or Dependabot secret rather than an Actions repository secret) does not fail the
+# release — it silently skips the step. Open VSX does not backfill and a version number can never
+# be republished, so that silence costs a version permanently.
+#
+# Run it from the Actions tab before tagging.
+on:
+  workflow_dispatch:
+
+jobs:
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      # Only so the namespace check below can read `publisher` out of package.json rather than
+      # hardcoding it — the two must agree, and hardcoding is how they drift.
+      - uses: actions/checkout@v5
+
+      - name: Report which publish steps would run
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          # Presence and shape only. Nothing here prints a token, a length, or anything derived
+          # from one — GitHub would mask it anyway, and a masked value in a log is still a value
+          # someone tried to print.
+          status=0
+
+          check() {
+            name="$1"
+            value="$2"
+            registry="$3"
+
+            if [ -z "$value" ]; then
+              echo "::error::$name is missing or empty — the $registry step will silently skip."
+              status=1
+              return
+            fi
+
+            # The trap that survives a correct-looking secret: a trailing newline from
+            # `gh secret set NAME < file`, or a space picked up pasting into the web form. The
+            # token then travels in a malformed header and fails at publish time saying
+            # something unhelpful about authorisation.
+            trimmed="$(printf '%s' "$value" | tr -d '[:space:]' | wc -c)"
+            raw="$(printf '%s' "$value" | wc -c)"
+            if [ "$trimmed" != "$raw" ]; then
+              echo "::error::$name contains whitespace — re-add it with \`gh secret set $name\` and paste at the prompt."
+              status=1
+              return
+            fi
+
+            echo "$name: present, no stray whitespace — the $registry step will run."
+          }
+
+          check VSCE_PAT "$VSCE_PAT" "VS Code Marketplace"
+          check OVSX_PAT "$OVSX_PAT" "Open VSX"
+
+          exit $status
+
+      - name: Confirm the Open VSX namespace exists
+        # Note the endpoint. `/api/-/namespace/<name>` returns 404 whether or not the namespace
+        # exists, which is what RELEASING.md used to recommend and what made this look unregistered
+        # for weeks. `/api/<name>` is the one that answers the question.
+        run: |
+          namespace="$(node -p "require('./package.json').publisher" 2>/dev/null || echo AkshayDMuley)"
+          code="$(curl -s -o /tmp/ns.json -w '%{http_code}' "https://open-vsx.org/api/$namespace")"
+
+          if [ "$code" != "200" ]; then
+            echo "::error::Open VSX namespace '$namespace' does not exist (HTTP $code). Claim it with \`npx ovsx create-namespace $namespace -p <token>\`."
+            exit 1
+          fi
+
+          echo "Open VSX namespace '$namespace' exists:"
+          cat /tmp/ns.json
+
+      # Neither check above can prove the token is *accepted* — that needs the token itself, which
+      # only exists on your machine. `npx ovsx verify-pat` is the step that catches a missing
+      # GitHub Username field or an unsigned Publisher Agreement, and RELEASING.md keeps it.
+      - name: What this cannot check
+        run: |
+          echo "Verified: the secrets resolve here, and the namespace exists."
+          echo "Not verified: that the token is accepted — run 'npx ovsx verify-pat <namespace> -p <token>' locally."
