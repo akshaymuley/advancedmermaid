@@ -11,9 +11,11 @@ Each pane names its own file, diagram, and version, so a comparison can span two
 The two versions can also be stacked — faded, split at a divider, or blinked between — and exported
 as SVG or PNG, either side by side or as the merged diff. **Milestones 1–7 complete.**
 
-Everything since v1.0.1 sits in `[Unreleased]` — **three** milestones' worth (5, 6 and 7), since
-nothing has been tagged in between. Whether that ships as one version or as several is a decision
-for release time; the Open VSX hold on it is **lifted** (see Known gaps). Milestone 7
+Everything since v1.0.1 is **prepared as v2.0.0** — three milestones' worth (5, 6 and 7) in one
+release, since nothing was tagged in between. The version is bumped and the changelog written; only
+the tag remains, and it is deliberately a hand step. The major bump is for semantic diff: nothing
+in it removes or renames anything, so every 1.x command still behaves as it did. The Open VSX hold
+is **lifted** (see Known gaps). Milestone 7
 is **complete**: flowcharts, sequence diagrams and class diagrams are each parsed, diffed, and
 rendered as **one merged diagram** with the changes marked, falling back to side by side for
 anything else. Each type marks its changes the way mermaid actually allows — which took a probe
@@ -122,7 +124,10 @@ Code host), and `view` (the browser checks, with a cached Chromium). `main` is P
   misnamed or misplaced secret skips silently rather than failing — and Open VSX does not backfill,
   so a skipped version can never be published there.
 - **The published package shipped `.claude/`** in v1.0.0 and v1.0.1 — agent and skill definitions
-  users had no reason to download. Fixed in `.vscodeignore`; goes out with the next release.
+  users had no reason to download. Fixed in `.vscodeignore`, and the fix ships with v2.0.0. Audited
+  rather than assumed while preparing that release: `vsce ls` and the packaged `.vsix` both hold
+  11 files — readme, licence, changelog, `package.json`, the two `dist` bundles and three `media`
+  files — and nothing from `src/`, `scripts/`, `.claude/` or the test suites.
 
 ---
 

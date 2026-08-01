@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] — 2026-08-01
+
+The first release since 1.0.1, and three milestones' worth in one: broader inputs (Markdown,
+arbitrary refs and files, several comparisons at once), the visual diff modes (overlay, swipe,
+blink, export), and **semantic diff** — one merged diagram instead of two, for flowcharts, sequence
+diagrams and class diagrams.
+
+The major bump is for semantic diff. Nothing here removes or renames anything you were using: every
+1.x command still exists and still behaves the same way.
+
 ### Added
 
 - **Semantic mode now reads class diagrams too.** A merged `classDiagram` tints the classes that
@@ -189,7 +199,8 @@ Release readiness. Not published to the Marketplace.
 - Rejects files that aren't `.mmd` / `.mermaid`, including via the command palette.
 - Mermaid is bundled — the extension works offline.
 
-[Unreleased]: https://github.com/akshaymuley/AdvancedMermaid/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/akshaymuley/AdvancedMermaid/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/akshaymuley/AdvancedMermaid/compare/v1.0.1...v2.0.0
 [1.0.1]: https://github.com/akshaymuley/AdvancedMermaid/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/akshaymuley/AdvancedMermaid/compare/v0.4.0...v1.0.0
 [0.4.0]: https://github.com/akshaymuley/AdvancedMermaid/compare/v0.3.0...v0.4.0

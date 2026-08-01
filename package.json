@@ -2,7 +2,7 @@
   "name": "advanced-mermaid",
   "displayName": "Advanced Mermaid",
   "description": "Compare rendered Mermaid diagrams instead of code — side-by-side visual diff against any git ref.",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "publisher": "AkshayDMuley",
   "license": "MIT",
   "icon": "media/icon.png",

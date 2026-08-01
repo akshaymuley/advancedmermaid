@@ -126,7 +126,8 @@ Both panes pan and zoom together by default. Turn **Sync** off to frame each sid
 - [x] **Semantic diff** — parse both versions, diff the graph structure, and render one merged diagram with added/removed/changed elements highlighted. Stable layout, so the change jumps out.
 - [x] Compare a diagram in one file against a diagram in another
 - [x] Export comparison as image
-- [ ] Semantic diff for `sequenceDiagram` and `classDiagram` — flowcharts are supported today
+- [x] Semantic diff for `sequenceDiagram` and `classDiagram`
+- [ ] Semantic diff for further diagram types — state, ER and the rest, based on what people ask for
 
 See [PLAN.md](PLAN.md) for the full milestone-by-milestone plan.
 
