@@ -25,10 +25,10 @@ Open VSX serves VSCodium, Cursor, Gitpod, and Windsurf, which cannot reach the M
 Marketplace. The release workflow publishes there too, and skips it silently while `OVSX_PAT` is
 absent — exactly like `VSCE_PAT`.
 
-**Set up as of 2026-08-01.** The `AkshayDMuley` namespace exists, the PAT has been verified with
-`ovsx verify-pat`, and the `OVSX_PAT` secret is configured — so the next tag publishes to both
-registries. The steps below are kept for the next time this has to be done, and because two of
-them fail silently.
+**Working since 2026-08-01.** The `AkshayDMuley` namespace exists, the PAT is verified, the
+`OVSX_PAT` secret is configured, and **v2.0.0 published successfully to both registries** — the
+first version to reach Open VSX at all. The steps below are kept for the next time this has to be
+done, and because two of them fail silently.
 
 > **Check the namespace with `https://open-vsx.org/api/AkshayDMuley`, not
 > `https://open-vsx.org/api/-/namespace/AkshayDMuley`.** The second returns 404 whether or not the
@@ -90,6 +90,26 @@ them fail silently.
 6. Watch the **Release** workflow. It refuses to run if the tag doesn't match
    `package.json` — that mismatch is the most common release mistake and it's cheaper to catch
    in CI than on the Marketplace.
+   Check that **both** publish steps *ran* rather than being skipped. They are gated on
+   `env.X != ''`, so a missing secret leaves the run green with nothing published.
+
+7. **Confirm both registries actually serve the new version — and poll, don't check once.**
+   Both lag behind a successful publish, and both look like a failed release while they do. At
+   v2.0.0, Open VSX returned 404 for about a minute after printing `🚀 Published`, and the
+   Marketplace kept serving the previous version for roughly five minutes.
+
+   ```bash
+   # Open VSX
+   curl -s https://open-vsx.org/api/AkshayDMuley/advanced-mermaid | head -c 200
+
+   # Marketplace — `vsce show` reads a cache that lags further; the gallery API is straighter
+   curl -s -X POST https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery \
+     -H 'Accept: application/json;api-version=7.2-preview.1' -H 'Content-Type: application/json' \
+     -d '{"filters":[{"criteria":[{"filterType":7,"value":"AkshayDMuley.advanced-mermaid"}]}],"flags":403}'
+   ```
+
+8. **Install it from the registry and open one comparison.** Everything before this proves the
+   artifact; only this proves it works once installed rather than sideloaded from a local `.vsix`.
 
 ## Notes
 
