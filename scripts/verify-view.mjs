@@ -25,6 +25,29 @@ const SEMANTIC_BEFORE =
 const SEMANTIC_AFTER =
   'flowchart TD\n  A[Build image] --> B[Unit tests]\n  B --> L[Lint]\n  L --> C[Deploy]';
 
+// The same, as a sequence diagram: a reworded message, an added one, a removed one, a renamed
+// participant, and a block to prove bands nest rather than flatten.
+const SEQUENCE_BEFORE = `sequenceDiagram
+  participant U as User
+  participant S as Service
+  U ->> S: Place order
+  alt in stock
+    S -->> U: Confirmed
+  end
+  S -->> U: Receipt`;
+const SEQUENCE_AFTER = `sequenceDiagram
+  participant U as Customer
+  participant S as Service
+  U ->> S: Place order now
+  alt in stock
+    S -->> U: Confirmed
+    S ->> S: Reserve stock
+  end`;
+
+/** Nothing either reader understands, so semantic must fall back and say why. */
+const UNDIFFABLE_BEFORE = 'classDiagram\n  Animal <|-- Duck';
+const UNDIFFABLE_AFTER = 'classDiagram\n  Animal <|-- Dog';
+
 let failures = 0;
 let checks = 0;
 
@@ -576,9 +599,56 @@ async function main() {
       mergedPng.subarray(1, 4).toString() === 'PNG' && mergedPng.length > 2000,
       `${mergedPng.length} bytes`);
 
-    // The fallback. A sequence diagram can't be graphed, and the mode must say so rather than
-    // showing an empty pane.
-    await compare(page, 'sequenceDiagram\n  A ->> B: hi', 'sequenceDiagram\n  A ->> B: hello');
+    /**
+     * The same mode over a sequence diagram, which marks its changes a different way: `classDef`
+     * is flowchart-only, so a merged sequence diagram bands each change in a `rect` instead. Only
+     * a real render can say whether mermaid accepted the generated bands — and a probe against
+     * this same browser is what established they nest inside `alt` at all.
+     */
+    await compare(page, SEQUENCE_BEFORE, SEQUENCE_AFTER);
+    await settle(page);
+
+    check('a sequence diagram merges rather than falling back',
+      (await page.isVisible('#merged-viewport')) && !(await page.isVisible('#semantic-notice')));
+    check('mermaid accepted the generated sequence source and drew it',
+      await page.evaluate(() => !!document.querySelector('#merged-viewport svg')));
+
+    const sequenceText = await mergedText();
+    check('the merged diagram holds messages from both versions',
+      sequenceText.includes('Receipt') && sequenceText.includes('Reserve stock'), sequenceText);
+    check('and says what a reworded message used to say',
+      sequenceText.includes('was: Place order'), sequenceText);
+    check('and marks a renamed participant, which cannot be banded',
+      sequenceText.includes('was: User'), sequenceText);
+
+    /**
+     * The bands themselves. Mermaid draws `rect` as a filled rect with a fill it took from the
+     * source, so a dropped or malformed band would leave the diagram rendering with nothing
+     * marked — exactly the failure the flowchart checks above exist to catch.
+     */
+    const bands = await page.evaluate(() =>
+      [...document.querySelectorAll('#merged-viewport rect')]
+        .map((r) => r.getAttribute('fill') ?? getComputedStyle(r).fill)
+        .filter((fill) => fill && fill.startsWith('rgba')));
+    check('the changes are banded in the render, not merely in the source',
+      bands.length >= 2, JSON.stringify(bands));
+    check('and the bands are translucent, so the message text survives on top of them',
+      bands.every((fill) => !/,\s*1\)$/.test(fill)), JSON.stringify(bands));
+
+    // A band inside an `alt` is the case the probe was run for: it renders, and it must not have
+    // flattened the block that contains it.
+    check('the block survived the banding',
+      sequenceText.includes('alt') || sequenceText.includes('in stock'), sequenceText);
+
+    await page.screenshot({ path: path.join(shots, '9b-semantic-sequence.png') });
+
+    const sequenceDoc = await describeSvg((await exportNow('svg'))?.data ?? '');
+    check('exporting a merged sequence diagram writes the merged one, not the two versions',
+      sequenceDoc.nested === 1, `nested svg: ${sequenceDoc.nested}`);
+
+    // The fallback. A class diagram can be read by neither parser, and the mode must say so rather
+    // than showing an empty pane.
+    await compare(page, UNDIFFABLE_BEFORE, UNDIFFABLE_AFTER);
     await settle(page);
     check('an undiffable pair falls back to both versions side by side',
       (await page.isVisible('#left-viewport')) && (await page.isVisible('#right-viewport')));
@@ -595,7 +665,7 @@ async function main() {
       (await page.isVisible('#merged-viewport')) && !(await page.isVisible('#semantic-notice')));
 
     // A fallback is showing two panes, so it must export two — the mode alone doesn't decide.
-    await compare(page, 'sequenceDiagram\n  A ->> B: hi', 'sequenceDiagram\n  A ->> B: hello');
+    await compare(page, UNDIFFABLE_BEFORE, UNDIFFABLE_AFTER);
     await settle(page);
     const fallbackDoc = await describeSvg((await exportNow('svg'))?.data ?? '');
     check('a fallback exports both versions, matching what it is showing',

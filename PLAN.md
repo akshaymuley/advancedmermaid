@@ -14,9 +14,9 @@ as SVG or PNG, either side by side or as the merged diff. **Milestones 1–6 com
 Everything since v1.0.1 sits in `[Unreleased]` — two milestones' worth, since nothing has been
 tagged in between. Whether that ships as one version or as v1.1.0 followed by v1.2.0 is a decision
 for release time; either way it is **held** on Open VSX registration (see Known gaps). Milestone 7
-is most of the way in: flowcharts are parsed into a graph, diffed, and rendered as **one merged
-diagram** with the changes marked, falling back to side by side for anything that isn't a
-flowchart. Only extending it past `flowchart` remains, and that one is waiting on demand.
+is all but done: flowcharts **and sequence diagrams** are parsed, diffed, and rendered as **one
+merged diagram** with the changes marked, falling back to side by side for anything else. Only
+`classDiagram` remains, and that one is waiting on demand.
 
 ---
 
@@ -29,17 +29,22 @@ flowchart. Only extending it past `flowchart` remains, and that one is waiting o
 | `src/git-errors.ts` | 73 | Pure failure classification + user-facing messages |
 | `src/comparePanel.ts` | 349 | Webview panel registry, CSP shell, per-side edit tracking, refresh, export round trip |
 | `src/debounce.ts` | 45 | Pure debounce with `cancel()` / `flush()` |
-| `src/webview/main.ts` | 714 | Mermaid render, pan/zoom, mode/divider/blink/semantic wiring, export composition + rasterise |
+| `src/webview/main.ts` | 711 | Mermaid render, pan/zoom, mode/divider/blink/semantic wiring, export composition + rasterise |
 | `src/webview/view-math.ts` | 93 | Pure fit / zoom-anchor / clamp maths + `dividerPercent` |
 | `src/webview/panel-body.ts` | 61 | The panel DOM, shared by the real panel and the harness |
 | `src/webview/view-mode.ts` | 78 | Pure comparison-mode state, its layout category, and its sync interaction |
 | `src/webview/export-image.ts` | 211 | Pure SVG composition for export — the two diagrams, or the merged one under its key |
 | `src/webview/flowchart-parse.ts` | 392 | Pure `flowchart`/`graph` source → nodes, edges, subgraphs; `null` for anything else |
-| `src/webview/flowchart-diff.ts` | 139 | Pure graph diff — added / removed / changed, in a stable order |
+| `src/webview/flowchart-diff.ts` | 84 | Pure graph diff — added / removed / changed, in a stable order |
 | `src/webview/flowchart-merge.ts` | 149 | Pure: a diff back out as one mermaid source, changes styled |
+| `src/webview/reconcile.ts` | 93 | Pure list matching + removal placement, shared by both diffs |
+| `src/webview/sequence-parse.ts` | 297 | Pure `sequenceDiagram` source → participants, messages, notes, nested blocks; `null` for anything else |
+| `src/webview/sequence-diff.ts` | 245 | Pure sequence diff — anchored messages, recursion through blocks |
+| `src/webview/sequence-merge.ts` | 159 | Pure: the diff back out as one mermaid source, changes banded in `rect` |
+| `src/webview/semantic-diff.ts` | 78 | Picks the reader, returns the merged source and its legend kinds, or `null` |
 | `src/webview/diagram-source.ts` | 7 | `isBlankDiagram()` |
 | `src/test/harness/main.ts` | 61 | Boots the webview outside VS Code for Playwright |
-| `scripts/verify-view.mjs` | 754 | `npm run verify:view` — 127 browser checks + screenshots |
+| `scripts/verify-view.mjs` | 824 | `npm run verify:view` — 136 browser checks + screenshots |
 | `scripts/make-vscode-screenshots.mjs` | 254 | Captures `docs/images/` from a real VS Code over CDP |
 | `src/test/screenshots/driver.ts` | 67 | Sequences the panel states for that capture, in-host |
 | `src/mermaid-file.ts` | 28 | `classifySource()` — pure file-type guard (mermaid vs markdown) |
@@ -399,7 +404,34 @@ rendering, a test harness, and real usage feedback to know which diagram types m
       Semantic, so the answer to "why is there no diff?" is on screen rather than inferred from a
       mode that silently reverted. Re-decided on every message, not only on entry, so editing a
       diagram back into a flowchart restores the merged view without reselecting the mode.
-- [ ] Extend to `sequenceDiagram`, then `classDiagram`, based on demand.
+- [x] Extend to `sequenceDiagram`. `sequence-parse.ts` / `sequence-diff.ts` / `sequence-merge.ts`
+      mirror the flowchart trio, and `semantic-diff.ts` is the new seam that picks between them —
+      so `main.ts` asks one question instead of naming a parser, and a third type later touches
+      neither the webview nor the export.
+      **`classDef` is flowchart-only**, so a merged sequence diagram cannot style a message the way
+      the flowchart one styles a node. Mermaid's sequence grammar has exactly one per-statement
+      hook, `rect`, and a probe against a real render settled the design before a line was written:
+      a band wraps a single message precisely, it nests correctly inside `alt` and `loop`, and
+      `rgba` works — which matters, because a solid band swallows the message text on a dark canvas.
+      The probe also found the rule the emitter is built around: **a `rect` around a participant
+      declaration produces NaN geometry and garbles the whole diagram.** Participant changes are
+      marked in the display label instead — `Customer (was: User)` — which is also the only way a
+      participant nobody messages would show up as added at all.
+      Blocks are diffed **recursively**, matched by keyword and sibling position, rather than by
+      flattening the statement list. Flattening pairs the `alt` arm of one version against the
+      `else` arm of the other, and can emit openings whose `end`s no longer balance.
+      *The bug the tests caught, and the reason messages needed more than the ordinal keying edges
+      use:* delete the middle of three messages between the same pair. Position alone cannot tell
+      that from "the second was reworded and the third deleted" — it always reads it the second
+      way, reporting a change to a message whose text never moved. Identical messages are anchored
+      first; only the leftovers pair by position, which is what still reports a rewording as a
+      change rather than as a removal plus an addition.
+      `box` is **refused** rather than modelled, and the distinction is deliberate: it groups
+      *participants*, so re-emitting a diagram without understanding it would silently regroup the
+      cast. Falling back says "I can't diff this"; that would say something false.
+      A pair whose diagram *type* changed between versions also falls back — that is a rewrite, not
+      a diff, and merging it would mean reinterpreting one version in the other's terms.
+- [ ] Extend to `classDiagram`, based on demand.
 
 ---
 

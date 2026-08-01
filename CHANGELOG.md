@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Semantic mode now reads sequence diagrams too.** A merged `sequenceDiagram` marks its changes
+  with coloured bands rather than outlines — added messages green, removed ones red and kept where
+  they used to sit in the exchange, reworded ones amber carrying what they used to say
+  (`Place order now (was: Place order)`). Notes, activations, and `loop` / `alt` / `opt` / `par` /
+  `critical` / `break` blocks all come through, and a change inside a block is banded inside it
+  rather than flattening the block away. Participants say their own change in their label —
+  `Customer (was: User)`, `Bob (added)` — which is also the only way someone nobody messages shows
+  up as added at all.
+  Anything neither a flowchart nor a sequence diagram still falls back to the two versions side by
+  side, as does a comparison whose diagram *type* changed between the versions: that is a rewrite
+  rather than a diff.
 - **Semantic mode — one merged diagram instead of two.** Reads both versions of a flowchart as a
   graph, works out what actually changed, and draws a single diagram with additions in green,
   removals dashed in red, and reworded nodes in amber carrying the text they used to have

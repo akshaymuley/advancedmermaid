@@ -3,9 +3,9 @@ import { isBlankDiagram } from './diagram-source';
 import { composeComparison, composeMerged, type ExportSide, type LegendKey } from './export-image';
 import { Box, computeFitView, dividerPercent, panBy, View, zoomAt } from './view-math';
 import { initialViewMode, isStacked, setMode, syncAvailable, toggleSync, ViewMode } from './view-mode';
-import { parseFlowchart } from './flowchart-parse';
-import { diffFlowcharts, type ChangeKind } from './flowchart-diff';
-import { mergeSource, type MergeColours } from './flowchart-merge';
+import type { MergeColours } from './flowchart-merge';
+import type { ChangeKind } from './reconcile';
+import { mergeDiagrams } from './semantic-diff';
 
 type Pane = 'left' | 'right';
 const PANES: Pane[] = ['left', 'right'];
@@ -302,31 +302,28 @@ const LEGEND_KINDS: { kind: Exclude<ChangeKind, 'unchanged'>; label: string; das
 let mergedLegend: LegendKey[] = [];
 
 /**
- * Render the two sides as one merged diagram. Returns false when they can't be diffed — a
- * sequence diagram, a class diagram, or a source too broken to parse — which is the caller's cue
- * to fall back to showing both versions.
+ * Render the two sides as one merged diagram. Returns false when they can't be diffed — a class
+ * diagram, a pair whose type changed between versions, or a source too broken to parse — which is
+ * the caller's cue to fall back to showing both versions.
  *
  * The sources come from `rendered`, which already holds exactly what each pane was last given.
+ * Which reader understands them is `semantic-diff.ts`'s decision, not this file's.
  */
 async function renderMerged(): Promise<boolean> {
-  const before = parseFlowchart(rendered.left ?? '');
-  const after = parseFlowchart(rendered.right ?? '');
-  if (!before || !after) {
+  const merged = mergeDiagrams(rendered.left ?? '', rendered.right ?? '', SEMANTIC_COLOURS);
+  if (!merged) {
     return false;
   }
 
-  const diff = diffFlowcharts(before, after);
-  mergedLegend = LEGEND_KINDS.filter(
-    ({ kind }) =>
-      diff.nodes.some((change) => change.kind === kind) ||
-      diff.edges.some((change) => change.kind === kind),
-  ).map(({ kind, label, dashed }) => ({
-    label,
-    colour: SEMANTIC_COLOURS[kind],
-    ...(dashed ? { dashed } : {}),
-  }));
+  mergedLegend = LEGEND_KINDS.filter(({ kind }) => merged.kinds.includes(kind)).map(
+    ({ kind, label, dashed }) => ({
+      label,
+      colour: SEMANTIC_COLOURS[kind],
+      ...(dashed ? { dashed } : {}),
+    }),
+  );
 
-  const source = mergeSource(diff, after, SEMANTIC_COLOURS);
+  const { source } = merged;
   if (mergedRendered === source && hasGoodMerged) {
     return true;
   }
@@ -467,7 +464,7 @@ function applyMode(): void {
   notice.hidden = mode !== 'semantic' || semanticActive;
   if (!notice.hidden) {
     notice.textContent =
-      'Semantic diff reads flowcharts only — showing both versions side by side instead.';
+      'Semantic diff reads flowcharts and sequence diagrams — showing both versions side by side instead.';
   }
 
   if (isSynced() && lastActive !== 'merged') {
