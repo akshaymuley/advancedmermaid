@@ -60,7 +60,8 @@ merged diagram** with the changes marked, falling back to side by side for anyth
 | `src/test/vscode-mock.ts` | 75 | Shared `vscode` module mock (aliased in `vitest.config.ts`) |
 
 Build is esbuild (two bundles: node CJS extension + IIFE browser webview).
-CI runs `typecheck` + `test` + `build` on every PR. `main` is PR-protected.
+CI runs three jobs on every PR: `build` (`typecheck` + `test` + `build`), `integration` (a real VS
+Code host), and `view` (the browser checks, with a cached Chromium). `main` is PR-protected.
 
 ### Known gaps (feeding the milestones below)
 
@@ -82,8 +83,21 @@ CI runs `typecheck` + `test` + `build` on every PR. `main` is PR-protected.
   The view — pan, zoom and the mode — is deliberately **not** restored: a reloaded panel comes
   back framed and side by side. Carrying that through means the webview merging its own state with
   the host's, which is a separate decision from "the tab still exists".
-- **`verify:view` is not in CI.** It needs a ~130 MB Chromium download, which isn't worth it on
-  every PR yet. Revisit if the webview grows. (`test:integration` *is* in CI.)
+- ~~**`verify:view` is not in CI.**~~ **Closed.** It runs as a third job, `view`. What settled it
+  was not the download getting cheaper but the checks getting more important: since Semantic, the
+  merged diagram is mermaid source *this project generates*, and whether mermaid accepts it has no
+  witness but a real render — a rejected source leaves an empty pane and no failing unit test.
+  Caching `~/.cache/ms-playwright` on the lockfile hash is what made the cost bearable. Measured on
+  the PR that added it: **32s cold, 20s warm** for the install step, **27–28s** for the checks
+  themselves, ~1m19s for the whole job cold. `--with-deps` still runs on a hit, since the cache
+  holds the browser and not the apt packages it links against.
+  The harness has 31 fixed-duration waits, which is the shape of the bug the reload work hit — so
+  the job was re-run **five times** before merging rather than trusted on one green tick. All five
+  passed, and the checks step held at 27–28s each time. That is evidence of stability, not proof of
+  it; the fix for any flake that does turn up is the one `closeAllPanels` got — wait on a real
+  condition, not a longer sleep.
+  Making `view` a **required status check** is branch protection in GitHub's UI, by hand, as
+  `build` was.
 - **No usage feedback yet.** Published, hand-verified from a `.vsix`, but nobody has lived with
   it. Milestone 7's diagram-type priorities are guesses until that changes.
 - **Open VSX is still unregistered, and it gates the next version bump.** No `OVSX_PAT` secret

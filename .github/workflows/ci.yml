@@ -43,3 +43,43 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: xvfb-run -a npm run test:integration
+
+  # Drives the real webview in Chromium: whether a diagram actually ends up framed, whether the
+  # panes decouple, and — since Semantic — whether mermaid accepts source this project *generated*.
+  # That last one has no other witness: a merged diagram mermaid rejects leaves an empty pane and
+  # no failing unit test.
+  #
+  # Kept out of CI until now because of the ~130 MB browser download. The cache below is what
+  # changes that arithmetic: it is paid on a lockfile change rather than on every PR.
+  view:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: npm ci
+
+      # Keyed on the lockfile because that is what pins the browser build: playwright resolves a
+      # specific Chromium revision per version, so a bump invalidates this exactly when it should.
+      - uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      # `--with-deps` runs even on a cache hit, and has to: the cache carries the browser binary,
+      # not the apt packages it links against.
+      - run: npx playwright install --with-deps chromium
+
+      # No xvfb, unlike the integration job — Playwright launches Chromium headless. The script
+      # builds its own bundle and already exits non-zero on a failed check.
+      - run: npm run verify:view
+
+      # A visual suite running where nobody is watching needs to hand back what it saw. "the merged
+      # diagram is framed inside its pane — svg 1866x900 in pane 600x400" is a different message
+      # with the screenshot beside it.
+      - uses: actions/upload-artifact@v5
+        if: failure()
+        with:
+          name: view-screenshots
+          path: dist/view-screenshots/
