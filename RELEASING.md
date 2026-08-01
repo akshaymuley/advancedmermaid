@@ -83,8 +83,8 @@ them fail silently.
 5. Tag and push:
 
    ```bash
-   git tag v1.0.0
-   git push origin v1.0.0
+   git tag v2.0.0
+   git push origin v2.0.0
    ```
 
 6. Watch the **Release** workflow. It refuses to run if the tag doesn't match
