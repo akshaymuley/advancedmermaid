@@ -21,9 +21,9 @@ Git diffs of Mermaid show text changes, but a one-line edit can completely rearr
   new on the right. Drag it, or focus it and use the arrow keys.
 - **Blink mode** — alternate between the two in place. A node that shifted a few pixels becomes
   obvious motion. Three speeds, and a Pause for when you want to stop and look.
-- **Semantic mode** — for flowcharts and sequence diagrams, one *merged* diagram instead of two:
-  additions in green, removals in red, reworded ones in amber carrying the text they used to have.
-  The change is marked rather than left for your eye to find.
+- **Semantic mode** — for flowcharts, sequence diagrams and class diagrams, one *merged* diagram
+  instead of two: additions in green, removals in red, changes in amber carrying what they used to
+  say. The change is marked rather than left for your eye to find.
 - **Export** the comparison as SVG or PNG — both diagrams side by side, labelled, ready to paste
   into a pull request or an issue.
 - Diagrams open **fitted** to their panes. Zoom with the wheel, the buttons, or `+`/`-`/`0`.
@@ -81,8 +81,15 @@ Build image (was: Build)
 Mermaid lays the merged diagram out, so it looks like your diagram rather than like a diff tool's
 idea of one. Colour is never the only signal — removals are dashed as well as red.
 
-It reads **flowcharts** (`flowchart` and `graph`) and **sequence diagrams**. A merged sequence
-diagram marks its changes differently, because mermaid gives a message no class to style: each
+It reads **flowcharts** (`flowchart` and `graph`), **sequence diagrams**, and **class diagrams**.
+A merged class diagram tints the classes that changed and says the rest in words, because that is
+all mermaid allows there: a relationship carries its change in its label (`fed by (changed)`), and
+a field or method says it in its own line — `+String age [was +int age]`, `+sleep() void [added]`.
+A member keeps its identity through a retype, so changing a field's type reads as one change rather
+than as a deletion and an addition.
+
+A merged sequence diagram marks its changes differently again, because mermaid gives a message no
+class to style: each
 changed message, note or block is drawn inside a coloured band, added ones green, removed ones red,
 reworded ones amber and carrying what they used to say. Participants are marked in their own label
 — `Customer (was: User)`, `Bob (added)` — since a band around a participant is the one thing

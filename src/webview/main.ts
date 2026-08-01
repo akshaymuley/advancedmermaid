@@ -464,7 +464,7 @@ function applyMode(): void {
   notice.hidden = mode !== 'semantic' || semanticActive;
   if (!notice.hidden) {
     notice.textContent =
-      'Semantic diff reads flowcharts and sequence diagrams — showing both versions side by side instead.';
+      'Semantic diff reads flowcharts, sequence and class diagrams — showing both versions side by side instead.';
   }
 
   if (isSynced() && lastActive !== 'merged') {

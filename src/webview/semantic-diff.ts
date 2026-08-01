@@ -1,3 +1,6 @@
+import { diffClassDiagrams } from './class-diff';
+import { mergeClassSource } from './class-merge';
+import { parseClassDiagram } from './class-parse';
 import { diffFlowcharts } from './flowchart-diff';
 import { mergeSource, type MergeColours } from './flowchart-merge';
 import { parseFlowchart } from './flowchart-parse';
@@ -45,6 +48,21 @@ export function mergeDiagrams(
 
     return {
       source: mergeSource(diff, flowcharts[1], colours),
+      kinds: HIGHLIGHTED.filter(present),
+    };
+  }
+
+  const classDiagrams = pair(parseClassDiagram(before), parseClassDiagram(after));
+  if (classDiagrams) {
+    const diff = diffClassDiagrams(classDiagrams[0], classDiagrams[1]);
+    const present = (kind: ChangeKind): boolean =>
+      diff.classes.some((change) => change.kind === kind) ||
+      diff.classes.some((change) => change.members.some((member) => member.kind === kind)) ||
+      diff.relationships.some((change) => change.kind === kind) ||
+      diff.notes.some((change) => change.kind === kind);
+
+    return {
+      source: mergeClassSource(diff, classDiagrams[1], colours),
       kinds: HIGHLIGHTED.filter(present),
     };
   }
