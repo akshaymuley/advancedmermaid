@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Side by side now marks the changes.** A comparison opens in Side by side, and until now that
+  meant two renders with nothing to say what moved between them — the difference was there to be
+  found by eye, and the marked-up view was one dropdown away in a mode called "Semantic" that
+  nobody had a reason to click. Each pane is now marked as it is drawn: the older one shows what
+  was removed and what was reworded, the newer one what was added and what was reworded, with a key
+  beneath the pane labels. Flowcharts, sequence diagrams and class diagrams, the same three
+  Semantic reads.
+- **An exported comparison carries the key** when its panes are marked. The marks travel out inside
+  the pane SVGs, and a coloured outline nobody can look up is just a coloured outline once it has
+  been pasted into a pull request.
+
+### Changed
+
+- **The stacked modes are deliberately left unmarked.** Overlay, swipe and blink lay the two
+  renders over each other so that shapes line up; a red-outlined diagram stacked on a green-outlined
+  one is two sets of marks fighting the alignment the mode exists for. Switching into Side by side
+  and back restores them.
+- **A diagram carrying its own `classDef` or `style` is left unmarked.** Marking means regenerating
+  the source, which does not write author styling back out — so a diagram you coloured yourself
+  would come back in the diff's colours instead. Semantic mode still diffs those; it was asked for
+  explicitly, and this is on by default.
+- **A half-typed diagram is left alone**, so the error badge still appears. The readers are lenient
+  enough to make sense of a partial edit and emit a tidied version of it, which would otherwise
+  render cleanly and quietly show you something you had not written. While one side is mid-edit the
+  other keeps the marks it already has rather than dropping them for the duration — source is
+  invalid most of the time while typing, and re-marking on every keystroke would strobe.
+
 ## [2.0.1] — 2026-08-01
 
 Listing and documentation only — no behaviour change. The Marketplace and Open VSX read the README,

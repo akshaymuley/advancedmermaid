@@ -209,4 +209,91 @@ describe('mergeSequenceSource', () => {
       expect(parseSequence(source)).not.toBeNull();
     });
   });
+
+  /** One version on its own, banded — what Side by side renders into each pane. */
+  describe('one side at a time', () => {
+    const side = (before: string, after: string, which: 'before' | 'after'): string => {
+      const older = chart(before);
+      const newer = chart(after);
+      const diff = diffSequences(older, newer);
+      return mergeSequenceSource(diff, which === 'before' ? older : newer, COLOURS, which);
+    };
+
+    const BEFORE = '  participant U as User\n  U ->> S: Place order\n  S -->> U: Receipt';
+    const AFTER = '  participant U as Customer\n  U ->> S: Place order now\n  S ->> S: Reserve';
+
+    it('leaves an added message out of the older side', () => {
+      const older = side(BEFORE, AFTER, 'before');
+      expect(older).not.toContain('Reserve');
+      expect(lines(older)).toContain('S -->> U: Receipt');
+    });
+
+    it('leaves a removed message out of the newer side', () => {
+      const newer = side(BEFORE, AFTER, 'after');
+      expect(newer).not.toContain('Receipt');
+      expect(lines(newer)).toContain('S ->> S: Reserve');
+    });
+
+    it('bands only what the older side can show — removed and changed, never added', () => {
+      const older = side(BEFORE, AFTER, 'before');
+      expect(older).toContain('rgba(207, 34, 46'); // removed
+      expect(older).toContain('rgba(154, 103, 0'); // changed
+      expect(older).not.toContain('rgba(26, 127, 55'); // added
+    });
+
+    it('bands only what the newer side can show — added and changed, never removed', () => {
+      const newer = side(BEFORE, AFTER, 'after');
+      expect(newer).toContain('rgba(26, 127, 55');
+      expect(newer).toContain('rgba(154, 103, 0');
+      expect(newer).not.toContain('rgba(207, 34, 46');
+    });
+
+    it('says each version’s own message text, never what it used to say', () => {
+      expect(lines(side(BEFORE, AFTER, 'before'))).toContain('U ->> S: Place order');
+      expect(lines(side(BEFORE, AFTER, 'after'))).toContain('U ->> S: Place order now');
+      expect(side(BEFORE, AFTER, 'before')).not.toContain('(was:');
+      expect(side(BEFORE, AFTER, 'after')).not.toContain('(was:');
+    });
+
+    /**
+     * A participant is the one thing a band cannot mark — `rect` around a declaration produces NaN
+     * geometry — so the marker stays a word, and each side says what it is from where it stands.
+     */
+    it('marks a participant in words, from that side’s point of view', () => {
+      expect(lines(side(BEFORE, AFTER, 'before'))).toContain('participant U as User');
+      expect(lines(side(BEFORE, AFTER, 'after'))).toContain('participant U as Customer');
+
+      // Declared but never messaged, so the parser can't infer it back — this is exactly the
+      // participant that would otherwise appear with nothing to say it arrived or left.
+      const gained = '  participant A\n  participant B\n  participant C\n  A ->> B: hi';
+      const lost = '  participant A\n  participant B\n  A ->> B: hi';
+      expect(lines(side(lost, gained, 'after'))).toContain('participant C as C (added)');
+      expect(lines(side(gained, lost, 'before'))).toContain('participant C as C (removed)');
+    });
+
+    it('keeps blocks balanced on each side', () => {
+      const before = '  alt a\n    A ->> B: x\n  else b\n    A ->> B: y\n  end';
+      const after = '  alt a\n    A ->> B: x2\n  end';
+
+      for (const which of ['before', 'after'] as const) {
+        expect(parseSequence(side(before, after, which))).not.toBeNull();
+      }
+    });
+
+    /** A branch only the older version had is its own section, and belongs only to that side. */
+    it('keeps a dropped branch on the older side and off the newer', () => {
+      const before = '  alt a\n    A ->> B: x\n  else b\n    A ->> B: gone\n  end';
+      const after = '  alt a\n    A ->> B: x\n  end';
+
+      expect(side(before, after, 'before')).toContain('gone');
+      expect(side(before, after, 'after')).not.toContain('gone');
+    });
+
+    it('bands nothing when the two versions agree', () => {
+      const same = '  A ->> B: hi';
+      for (const which of ['before', 'after'] as const) {
+        expect(side(same, same, which)).not.toContain('rect ');
+      }
+    });
+  });
 });

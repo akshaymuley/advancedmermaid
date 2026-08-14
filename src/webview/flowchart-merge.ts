@@ -1,5 +1,6 @@
 import { SHAPES, type Flowchart, type Subgraph } from './flowchart-parse';
 import type { ChangeKind, EdgeChange, FlowchartDiff, NodeChange } from './flowchart-diff';
+import { visible, type Side } from './reconcile';
 
 /** Literal colours, since mermaid's `classDef` takes no CSS variables. Chosen per theme. */
 export interface MergeColours {
@@ -24,22 +25,54 @@ const HIGHLIGHTED: Exclude<ChangeKind, 'unchanged'>[] = ['added', 'removed', 'ch
  * does the layout. Reaching into its rendered output would mean depending on internals this
  * project has already been bitten by twice.
  *
- * Takes the newer chart alongside the diff because a diff is about change and this also needs
- * structure — the header and the subgraph nesting, neither of which is a difference.
+ * Takes a chart alongside the diff because a diff is about change and this also needs structure —
+ * the header and the subgraph nesting, neither of which is a difference. That is the newer chart
+ * for the merged diagram, and the side's own chart when writing one version alone.
+ *
+ * With `side` given, this writes that version by itself for one Side by side pane: the changes it
+ * could not show are dropped, and each surviving one is emitted as that version had it. The pane
+ * beside it holds the other version, which is also why nothing here captions a label with what it
+ * used to say — the merged diagram needs that, two panes don't.
  *
  * Unchanged nodes and edges get no class at all, so they render in the theme's ordinary style.
  * Styling everything would make the changes exactly as loud as the parts that stayed put, which is
  * the problem this mode exists to solve.
  */
-export function mergeSource(diff: FlowchartDiff, after: Flowchart, colours: MergeColours): string {
+export function mergeSource(
+  diff: FlowchartDiff,
+  chart: Flowchart,
+  colours: MergeColours,
+  side?: Side,
+): string {
+  // Narrow the diff to this side before anything reads it, so the emitting below never has to ask
+  // which version it is writing — and so `linkStyle` numbers the edges that actually got emitted.
+  // Dropping `before` along the way is what stops a label being captioned with itself: `labelFor`
+  // reads it, and on one side alone there is nothing to say that the other pane isn't already
+  // saying.
+  const nodes = diff.nodes
+    .filter((change) => visible(change.kind, side))
+    .map((change): NodeChange =>
+      side === undefined
+        ? change
+        : { kind: change.kind, node: (side === 'before' && change.before) || change.node },
+    );
+
+  const edges = diff.edges
+    .filter((change) => visible(change.kind, side))
+    .map((change): EdgeChange =>
+      side === undefined
+        ? change
+        : { kind: change.kind, edge: (side === 'before' && change.before) || change.edge },
+    );
+
   const lines: string[] = [
-    after.direction ? `${after.keyword} ${after.direction}` : after.keyword,
+    chart.direction ? `${chart.keyword} ${chart.direction}` : chart.keyword,
   ];
 
-  const changes = new Map(diff.nodes.map((change) => [change.node.id, change]));
+  const changes = new Map(nodes.map((change) => [change.node.id, change]));
   const emitted = new Set<string>();
   const children = new Map<string | undefined, Subgraph[]>();
-  for (const block of after.subgraphs) {
+  for (const block of chart.subgraphs) {
     children.set(block.parent, [...(children.get(block.parent) ?? []), block]);
   }
 
@@ -67,18 +100,18 @@ export function mergeSource(diff: FlowchartDiff, after: Flowchart, colours: Merg
   // Whatever the blocks didn't claim, in the diff's order. A removed node lands here even if it
   // used to live inside a block: that block may not exist in the newer version at all, and
   // inventing one back would be a bigger lie than moving the node out of it.
-  for (const change of diff.nodes) {
+  for (const change of nodes) {
     if (!emitted.has(change.node.id)) {
       emitted.add(change.node.id);
       lines.push(`  ${nodeStatement(change)}`);
     }
   }
 
-  for (const change of diff.edges) {
+  for (const change of edges) {
     lines.push(`  ${edgeStatement(change)}`);
   }
 
-  return [...lines, ...styling(diff, colours)].join('\n');
+  return [...lines, ...styling(nodes, edges, colours)].join('\n');
 }
 
 /** `A["Text"]`, or a bare `A` where the source never gave one a label. */
@@ -114,17 +147,24 @@ function edgeStatement({ edge }: EdgeChange): string {
   return `${edge.from} ${edge.connector}${label} ${edge.to}`;
 }
 
-/** The `classDef`/`class`/`linkStyle` block, emitted only for the kinds actually present. */
-function styling(diff: FlowchartDiff, colours: MergeColours): string[] {
+/**
+ * The `classDef`/`class`/`linkStyle` block, emitted only for the kinds actually present.
+ *
+ * Takes the **emitted** nodes and edges rather than the diff, because `linkStyle` addresses an edge
+ * by its position in this source. Counting positions in the unfiltered diff instead would paint a
+ * different edge than the one that changed whenever a side dropped an earlier one — and it would do
+ * it silently, since the result still parses and still renders.
+ */
+function styling(nodes: NodeChange[], edges: EdgeChange[], colours: MergeColours): string[] {
   const lines: string[] = [];
 
   for (const kind of HIGHLIGHTED) {
-    const ids = diff.nodes.filter((c) => c.kind === kind).map((c) => c.node.id);
-    const edges = diff.edges
+    const ids = nodes.filter((c) => c.kind === kind).map((c) => c.node.id);
+    const links = edges
       .map((change, index) => ({ change, index }))
       .filter(({ change }) => change.kind === kind);
 
-    if (ids.length === 0 && edges.length === 0) {
+    if (ids.length === 0 && links.length === 0) {
       continue;
     }
 
@@ -137,7 +177,7 @@ function styling(diff: FlowchartDiff, colours: MergeColours): string[] {
     if (ids.length > 0) {
       lines.push(`  class ${ids.join(',')} ${kind}`);
     }
-    for (const { index } of edges) {
+    for (const { index } of links) {
       lines.push(`  linkStyle ${index} stroke:${colour},stroke-width:3px${dashed}`);
     }
   }

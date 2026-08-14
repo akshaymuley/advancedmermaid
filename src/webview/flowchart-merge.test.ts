@@ -214,4 +214,116 @@ describe('mergeSource', () => {
       expect(merge(before, after)).toBe(merge(before, after));
     });
   });
+
+  /**
+   * One version on its own, marked. What Side by side renders into each pane: the pane already
+   * shows the other version, so each side holds only what it actually had.
+   */
+  describe('one side at a time', () => {
+    const side = (before: string, after: string, which: 'before' | 'after'): string => {
+      const older = chart(before);
+      const newer = chart(after);
+      const diff = diffFlowcharts(older, newer);
+      return mergeSource(diff, which === 'before' ? older : newer, COLOURS, which);
+    };
+
+    const BEFORE = 'flowchart TD\n A[Build] --> B[Test]\n B --> C[Deploy]';
+    const AFTER = 'flowchart TD\n A[Build image] --> B[Test]\n B --> L[Lint]';
+
+    it('leaves an added node out of the older side', () => {
+      const older = side(BEFORE, AFTER, 'before');
+      expect(older).not.toContain('L');
+      expect(statements(older)).toContain('C["Deploy"]');
+    });
+
+    it('leaves a removed node out of the newer side', () => {
+      const newer = side(BEFORE, AFTER, 'after');
+      expect(newer).not.toContain('Deploy');
+      expect(statements(newer)).toContain('L["Lint"]');
+    });
+
+    it('marks only what the older side can show — removed and changed, never added', () => {
+      const older = side(BEFORE, AFTER, 'before');
+      expect(older).toContain(`classDef removed stroke:${COLOURS.removed}`);
+      expect(older).toContain(`classDef changed stroke:${COLOURS.changed}`);
+      expect(older).not.toContain('classDef added');
+      expect(older).toContain('class C removed');
+      expect(older).toContain('class A changed');
+    });
+
+    it('marks only what the newer side can show — added and changed, never removed', () => {
+      const newer = side(BEFORE, AFTER, 'after');
+      expect(newer).toContain(`classDef added stroke:${COLOURS.added}`);
+      expect(newer).toContain('class L added');
+      expect(newer).toContain('class A changed');
+      expect(newer).not.toContain('classDef removed');
+    });
+
+    it('says the older label on the older side, and the newer on the newer', () => {
+      expect(statements(side(BEFORE, AFTER, 'before'))).toContain('A["Build"]');
+      expect(statements(side(BEFORE, AFTER, 'after'))).toContain('A["Build image"]');
+    });
+
+    /**
+     * The whole point of showing both versions: the other pane *is* the old text. Repeating it on
+     * the newer side is noise, and putting it on the older side would caption the old label with
+     * itself.
+     */
+    it('never says "(was:" on either side', () => {
+      expect(side(BEFORE, AFTER, 'before')).not.toContain('(was:');
+      expect(side(BEFORE, AFTER, 'after')).not.toContain('(was:');
+    });
+
+    /**
+     * `linkStyle` counts the edges this source actually emits. Indexing into the unfiltered diff
+     * instead would paint a different edge than the one that changed — silently, since the source
+     * still parses and renders.
+     */
+    it('numbers linkStyle by the edges it emitted, not by the diff', () => {
+      // Older side: A-->B survives, B-->C is removed. The removal is the second edge emitted.
+      const older = side(BEFORE, AFTER, 'before');
+      expect(statements(older)).toEqual([
+        'flowchart TD',
+        'A["Build"]',
+        'B["Test"]',
+        'C["Deploy"]',
+        'A --> B',
+        'B --> C',
+      ]);
+      expect(older).toContain('linkStyle 1 ');
+
+      // Newer side: A-->B survives, B-->L is added — also second, but arrived at by dropping a
+      // different edge from the middle of the diff.
+      const newer = side(BEFORE, AFTER, 'after');
+      expect(statements(newer)).toEqual([
+        'flowchart TD',
+        'A["Build image"]',
+        'B["Test"]',
+        'L["Lint"]',
+        'A --> B',
+        'B --> L',
+      ]);
+      expect(newer).toContain('linkStyle 1 ');
+    });
+
+    it('keeps each side’s own header and subgraphs, not the other’s', () => {
+      const older = side(
+        'flowchart TD\n subgraph ci [CI]\n A\n end',
+        'flowchart LR\n subgraph build [Build]\n A\n end',
+        'before',
+      );
+      expect(older.split('\n')[0]).toBe('flowchart TD');
+      expect(older).toContain('subgraph ci ["CI"]');
+      expect(older).not.toContain('build');
+    });
+
+    it('emits nothing to style when the two versions agree', () => {
+      const same = 'flowchart TD\n A[One] --> B[Two]';
+      for (const which of ['before', 'after'] as const) {
+        const source = side(same, same, which);
+        expect(source).not.toContain('classDef');
+        expect(source).not.toContain('linkStyle');
+      }
+    });
+  });
 });

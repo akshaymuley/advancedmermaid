@@ -1,5 +1,5 @@
 import type { MergeColours } from './flowchart-merge';
-import type { ChangeKind } from './reconcile';
+import { visible, type ChangeKind, type Side } from './reconcile';
 import {
   isBlockChange,
   type ParticipantChange,
@@ -7,7 +7,7 @@ import {
   type SequenceDiff,
   type StatementChange,
 } from './sequence-diff';
-import type { Message, Note, Sequence, Statement } from './sequence-parse';
+import type { Block, Message, Note, Sequence, Statement } from './sequence-parse';
 
 /**
  * How much of the band colour to lay down. Enough to read as green or red at a glance, little
@@ -28,11 +28,16 @@ const TINT = 0.25;
  * The same probe found the rule this file is built around: **a `rect` around a participant
  * declaration produces NaN geometry and garbles the whole diagram**. Participant changes are
  * therefore marked in the display label instead, never banded.
+ *
+ * With `side` given, this writes that version by itself for one Side by side pane — the statements
+ * it could not show are dropped, and each survivor is written as that version had it. Nothing then
+ * reports what a message used to say: the pane beside it is already showing exactly that.
  */
 export function mergeSequenceSource(
   diff: SequenceDiff,
-  after: Sequence,
+  sequence: Sequence,
   colours: MergeColours,
+  side?: Side,
 ): string {
   const band = (kind: ChangeKind): string | undefined =>
     kind === 'unchanged' ? undefined : `rect ${tint(colours[kind])}`;
@@ -40,11 +45,17 @@ export function mergeSequenceSource(
   const lines: string[] = ['sequenceDiagram'];
 
   for (const change of diff.participants) {
-    lines.push(`  ${declaration(change)}`);
+    if (visible(change.kind, side)) {
+      lines.push(`  ${declaration(change, side)}`);
+    }
   }
 
   const emit = (changes: StatementChange[], indent: string): void => {
     for (const change of changes) {
+      if (!visible(change.kind, side)) {
+        continue;
+      }
+
       const opener = band(change.kind);
       const inner = opener ? `${indent}  ` : indent;
 
@@ -53,9 +64,12 @@ export function mergeSequenceSource(
       }
 
       if (isBlockChange(change)) {
-        emitBlock(change.statement.keyword, change.sections, inner);
+        // A retitled block is `changed`, so the older side has to take its keyword and its section
+        // titles from what it used to be — the diff's sections carry the newer titles.
+        const older = side === 'before' && change.before?.type === 'block' ? change.before : undefined;
+        emitBlock(older?.keyword ?? change.statement.keyword, change.sections, inner, older);
       } else {
-        lines.push(`${inner}${statement(change)}`);
+        lines.push(`${inner}${statement(change, side)}`);
       }
 
       if (opener) {
@@ -65,10 +79,16 @@ export function mergeSequenceSource(
   };
 
   /** A block and its sections, divided by whichever keyword divides blocks of its kind. */
-  const emitBlock = (keyword: string, sections: SectionChange[], indent: string): void => {
+  const emitBlock = (
+    keyword: string,
+    sections: SectionChange[],
+    indent: string,
+    older?: Block,
+  ): void => {
     sections.forEach((section, index) => {
       const opener = index === 0 ? keyword : DIVIDERS[keyword] ?? keyword;
-      lines.push(`${indent}${opener}${section.title ? ` ${section.title}` : ''}`);
+      const title = older?.sections[index]?.title ?? section.title;
+      lines.push(`${indent}${opener}${title ? ` ${title}` : ''}`);
       emit(section.statements, `${indent}  `);
     });
     lines.push(`${indent}end`);
@@ -106,30 +126,40 @@ function tint(hex: string): string {
  * is not a stylistic choice: banding a declaration breaks mermaid's layout outright. A participant
  * nobody messages would otherwise appear in the merged diagram with nothing to say it was added.
  */
-function declaration({ kind, participant, before }: ParticipantChange): string {
-  const label = participant.label ?? participant.id;
+function declaration({ kind, participant, before }: ParticipantChange, side?: Side): string {
+  const item = (side === 'before' && before) || participant;
+  const label = item.label ?? item.id;
+
+  // Added and removed still read as words on a single side: it is the only mark a participant can
+  // carry, and "this one goes away" is worth saying even when the pane beside it shows the absence.
   const marked =
     kind === 'added' || kind === 'removed'
       ? `${label} (${kind})`
-      : kind === 'changed' && before?.label !== undefined && before.label !== participant.label
+      : side === undefined &&
+          kind === 'changed' &&
+          before?.label !== undefined &&
+          before.label !== participant.label
         ? `${label} (was: ${before.label})`
         : label;
 
   // `as` is only needed when the display text differs from the id — but once a marker is on it, it
   // always does.
-  return marked === participant.id
-    ? `${participant.keyword} ${participant.id}`
-    : `${participant.keyword} ${participant.id} as ${marked}`;
+  return marked === item.id
+    ? `${item.keyword} ${item.id}`
+    : `${item.keyword} ${item.id} as ${marked}`;
 }
 
-function statement(change: StatementChange): string {
-  const { statement: item } = change;
+function statement(change: StatementChange, side?: Side): string {
+  const item = (side === 'before' && change.before) || change.statement;
+
+  // On one side there is no "before" to report — the other pane is holding it.
+  const was = side === undefined ? change.before : undefined;
 
   switch (item.type) {
     case 'message':
-      return message(item, change.before);
+      return message(item, was);
     case 'note':
-      return note(item, change.before);
+      return note(item, was);
     case 'other':
       return item.text;
     default:

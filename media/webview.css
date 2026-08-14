@@ -107,6 +107,8 @@ body {
   display: flex;
   flex: 0 0 auto;
   border-bottom: 1px solid var(--vscode-panel-border);
+  /* Side by side keeps both pane labels *and* shows a key, so the row has to be able to break. */
+  flex-wrap: wrap;
 }
 
 #pane-headers header {
@@ -116,7 +118,12 @@ body {
   padding: 4px 12px;
   font-size: 0.85em;
   opacity: 0.8;
-  flex: 1 1 50%;
+  /*
+   * Basis 0 rather than 50%: the row wraps now, so a basis of 50% plus the 1px divider between the
+   * two headers overflows the line and drops the second one onto a row of its own. Growing from 0
+   * splits the space evenly whatever the borders do.
+   */
+  flex: 1 1 0;
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -174,7 +181,7 @@ body {
 }
 
 /* Sits in the header row the two pane labels vacate, and matches their metrics. */
-#semantic-legend {
+#change-legend {
   display: flex;
   gap: 16px;
   margin: 0;
@@ -183,13 +190,22 @@ body {
   font-size: 0.85em;
 }
 
-#semantic-legend[hidden],
+/*
+ * Side by side is the one layout that keeps its pane labels, so the key takes a row of its own
+ * beneath them rather than competing with two headers for the same 50/50 split.
+ */
+#pane-headers.sideBySide #change-legend {
+  flex: 1 0 100%;
+  border-top: 1px solid var(--vscode-panel-border);
+}
+
+#change-legend[hidden],
 #semantic-notice[hidden] {
   display: none;
 }
 
 /* A swatch as well as a word: the colours alone would be the only signal of what they mean. */
-#semantic-legend .key::before {
+#change-legend .key::before {
   content: '';
   display: inline-block;
   width: 0.75rem;
@@ -199,19 +215,19 @@ body {
   border: 2px solid currentColor;
 }
 
-#semantic-legend .added {
+#change-legend .added {
   color: var(--semantic-added, #1a7f37);
 }
 
-#semantic-legend .removed {
+#change-legend .removed {
   color: var(--semantic-removed, #cf222e);
 }
 
-#semantic-legend .removed::before {
+#change-legend .removed::before {
   border-style: dashed;
 }
 
-#semantic-legend .changed {
+#change-legend .changed {
   color: var(--semantic-changed, #9a6700);
 }
 

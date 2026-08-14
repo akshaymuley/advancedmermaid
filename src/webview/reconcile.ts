@@ -1,6 +1,22 @@
 /** How one item fared between two versions of a diagram. */
 export type ChangeKind = 'added' | 'removed' | 'changed' | 'unchanged';
 
+/**
+ * Which version is being written on its own, when one is.
+ *
+ * Side by side already shows both versions, so each pane holds only what that version had: the
+ * older one cannot show an addition and the newer cannot show a removal. Absent means the merged
+ * diagram, which shows everything.
+ *
+ * Here beside `ChangeKind` rather than in any one emitter, because all three speak it and none of
+ * them owns it.
+ */
+export type Side = 'before' | 'after';
+
+/** Whether a change is part of `side`'s version at all. Everything, for the merged diagram. */
+export const visible = (kind: ChangeKind, side?: Side): boolean =>
+  side === 'before' ? kind !== 'added' : side === 'after' ? kind !== 'removed' : true;
+
 export interface Reconciled<T> {
   kind: ChangeKind;
   item: T;

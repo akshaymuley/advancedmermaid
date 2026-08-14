@@ -23,6 +23,12 @@ export interface ComparisonImage {
   gap?: number;
   padding?: number;
   labelHeight?: number;
+  /**
+   * The kinds Side by side marked the two panes with, when it marked them. Empty or absent draws
+   * no key and takes no room, which is what an unmarked comparison should look like.
+   */
+  legend?: LegendKey[];
+  legendHeight?: number;
 }
 
 /** One entry in the merged export's key. */
@@ -87,6 +93,10 @@ export interface ComparisonImageResult {
  * Deliberately not a snapshot of the current view: pan, zoom and the stacked modes are ways of
  * *looking*, while the exported file is the comparison itself — and blink has no still frame to
  * capture at all.
+ *
+ * The key is drawn for the same reason the merged image draws one: Side by side marks its panes,
+ * those marks travel out inside the pane SVGs, and a coloured outline nobody can look up is just a
+ * coloured outline once it has been pasted into a pull request.
  */
 export function composeComparison({
   left,
@@ -96,8 +106,18 @@ export function composeComparison({
   gap = 32,
   padding = 24,
   labelHeight = 28,
+  legend = [],
+  legendHeight = 24,
 }: ComparisonImage): ComparisonImageResult {
-  return compose([left, right], { background, foreground, gap, padding, labelHeight });
+  return compose([left, right], {
+    background,
+    foreground,
+    gap,
+    padding,
+    labelHeight,
+    legend,
+    legendHeight,
+  });
 }
 
 /**

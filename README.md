@@ -29,6 +29,9 @@ Both carry the same build. Editors that cannot reach the Microsoft Marketplace a
 - **Markdown support** — compare ```` ```mermaid ```` blocks in `.md` files. When a file holds several, pick which one from a list labelled by the heading above each.
 - **Several comparisons at once** — each pair of files, refs, and diagrams gets its own tab, so you can line two of them up. Re-running the same comparison brings its tab forward instead of opening a duplicate, and however many you have arranged come back after a window reload.
 - SCM view integration — right-click a changed file in the Source Control panel.
+- **Marked side by side** — the default view marks each pane as it draws it: the older one shows
+  what was removed and reworded, the newer what was added and reworded. Nothing to turn on, and
+  both versions still there to read.
 - **Overlay mode** — stack the two renders and fade between them with a slider. A node that moved
   a few pixels is obvious superimposed and nearly invisible across a gap.
 - **Swipe mode** — the same two layers with a draggable divider instead: old on the left of it,
@@ -68,6 +71,17 @@ header instead of blanking the pane.
 
 The mode picker in the toolbar chooses how the two versions are shown.
 
+**Side by side** is where a comparison opens, and it marks what it draws. Each pane carries the
+changes that version can actually show — removals and rewordings on the older side, additions and
+rewordings on the newer — with a key beneath the pane labels. Unchanged parts are left in the
+theme's ordinary style, so the marks are the only loud thing on screen.
+
+This needs the same reading of the diagram that Semantic does, so it applies to flowcharts,
+sequence diagrams and class diagrams. Anything else renders exactly as it always has, and so does a
+diagram carrying its own `classDef` or `style`: marking it would mean redrawing it in the diff's
+colours and losing yours, which is not a trade to make on a view nobody opted into. Semantic mode
+will still diff those.
+
 **Overlay** stacks both renders in one canvas and the slider fades the upper (newer) one, so the
 two versions can be flicked between in place — an onion skin. **Swipe** stacks them the same way
 but splits at a draggable divider: the old version left of it, the new version right of it. The
@@ -83,9 +97,9 @@ anything that moved shows up as movement rather than as two diagrams drifting ap
 
 ### Semantic diff
 
-The other four modes show you two diagrams and leave the comparing to you. **Semantic** does the
-comparing: it reads both versions as a graph of nodes and edges, works out what was added, removed
-and changed, and draws **one** diagram with the answer marked on it — additions in green, removals
+Side by side marks each version where it stands; the stacked modes leave the comparing to your eye.
+**Semantic** goes further than either: it reads both versions as a graph of nodes and edges, works
+out what was added, removed and changed, and draws **one** diagram with the answer marked on it — additions in green, removals
 dashed in red, and a reworded node in amber carrying the text it used to have:
 
 ```

@@ -512,6 +512,139 @@ async function main() {
       (await page.getAttribute('#sync', 'aria-pressed')) === 'true');
   }
 
+  console.log('\nside by side marks');
+  {
+    /**
+     * The default view, and the reason this feature exists: opening a comparison used to show two
+     * renders with nothing to say what moved between them. Like the merged diagram, each pane is
+     * now source this project generated, so only a browser can say mermaid accepted it.
+     */
+    const classesIn = (side) =>
+      page.evaluate((s) => ({
+        added: document.querySelectorAll(`#${s}-viewport .added`).length,
+        removed: document.querySelectorAll(`#${s}-viewport .removed`).length,
+        changed: document.querySelectorAll(`#${s}-viewport .changed`).length,
+      }), side);
+
+    await page.selectOption('#mode', 'sideBySide');
+    await compare(page, SEMANTIC_BEFORE, SEMANTIC_AFTER);
+    await settle(page);
+
+    check('both panes still render', await page.evaluate(() =>
+      !!document.querySelector('#left-viewport svg') &&
+      !!document.querySelector('#right-viewport svg')));
+
+    const older = await classesIn('left');
+    const newer = await classesIn('right');
+    check('the older pane marks what it lost and what was reworded',
+      older.removed > 0 && older.changed > 0, JSON.stringify(older));
+    check('and never marks an addition it could not have held',
+      older.added === 0, JSON.stringify(older));
+    check('the newer pane marks what it gained and what was reworded',
+      newer.added > 0 && newer.changed > 0, JSON.stringify(newer));
+    check('and never marks a removal it could not have held',
+      newer.removed === 0, JSON.stringify(newer));
+
+    // The whole point of two panes: the older text is in the pane beside it, so repeating it in a
+    // caption would be noise on one side and a contradiction on the other.
+    const paneText = async (s) => (await page.textContent(`#${s}-viewport`));
+    check('the older pane says the old label, plainly',
+      (await paneText('left')).includes('Build') && !(await paneText('left')).includes('was:'),
+      await paneText('left'));
+    check('the newer pane says the new label, plainly',
+      (await paneText('right')).includes('Build image') &&
+      !(await paneText('right')).includes('was:'),
+      await paneText('right'));
+
+    check('the key is showing, so the colours mean something',
+      await page.isVisible('#change-legend'));
+
+    // The two pane labels have to stay side by side over their panes. Adding the key to this row
+    // is what put that at risk: it wraps now, and a header wide enough to overflow the line would
+    // drop onto its own row and stop naming the pane beneath it.
+    const headerRows = await page.evaluate(() =>
+      new Set([...document.querySelectorAll('#pane-headers header')]
+        .map((h) => Math.round(h.getBoundingClientRect().top))).size);
+    check('the two pane labels share one row, with the key on its own beneath',
+      headerRows === 1, `distinct header rows: ${headerRows}`);
+
+    // Earlier sections pan and zoom, which pins the framing for the rest of the run — so frame it
+    // again before the screenshot, or the picture shows a corner of one diagram.
+    await page.click('#fit');
+    await settle(page);
+    await page.screenshot({ path: path.join(shots, '1b-side-by-side-marks.png') });
+
+    // A pair the readers cannot diff has to look exactly as it always did.
+    await compare(page, UNDIFFABLE_BEFORE, UNDIFFABLE_AFTER);
+    await settle(page);
+    check('an undiffable pair still renders both versions', await page.evaluate(() =>
+      !!document.querySelector('#left-viewport svg') &&
+      !!document.querySelector('#right-viewport svg')));
+    check('with no key, since nothing is marked',
+      !(await page.isVisible('#change-legend')));
+    check('and no notice nagging about a diff nobody asked for',
+      !(await page.isVisible('#semantic-notice')));
+
+    /**
+     * The guard that keeps this honest. The readers are lenient enough to read a half-typed
+     * diagram and emit a tidied version of it — which mermaid would then render cleanly, quietly
+     * replacing the user's broken source with one that works and no badge to say so.
+     */
+    await compare(page, SEMANTIC_BEFORE, SEMANTIC_AFTER);
+    await settle(page);
+    await compare(page, SEMANTIC_BEFORE, `${SEMANTIC_AFTER}\n  L -->`);
+    await settle(page);
+    check('a half-typed edit is left alone rather than tidied into something that renders',
+      await page.isVisible('#right-badge'));
+    // Source is invalid most of the time while typing, so re-marking on every keystroke would
+    // strobe the untouched pane.
+    check('and the pane nobody touched keeps its marks rather than flickering',
+      (await classesIn('left')).removed > 0, JSON.stringify(await classesIn('left')));
+
+    await compare(page, VALID, BROKEN);
+    await settle(page);
+    check('a first render that will not parse still reports itself',
+      await page.isVisible('#right-badge') ||
+      (await page.locator('#right-viewport .render-error').count()) > 0);
+
+    /** Author styling would be dropped by the regeneration, so the pair is left unmarked. */
+    const STYLED_AFTER = `${SEMANTIC_AFTER}\n  classDef hot fill:#f00\n  class B hot`;
+    await compare(page, SEMANTIC_BEFORE, STYLED_AFTER);
+    await settle(page);
+    check('a diagram carrying its own styling keeps it, unmarked',
+      (await classesIn('right')).changed === 0 &&
+      (await page.innerHTML('#right-viewport')).includes('<svg'));
+    check('and shows no key, having nothing to explain',
+      !(await page.isVisible('#change-legend')));
+
+    // Marks live in the source, so this is the one mode change that has to re-render.
+    await compare(page, SEMANTIC_BEFORE, SEMANTIC_AFTER);
+    await settle(page);
+    await page.selectOption('#mode', 'overlay');
+    await settle(page);
+    check('stacking drops the marks, so the two layers can be compared by shape',
+      (await classesIn('left')).removed === 0 && (await classesIn('right')).added === 0);
+    check('and puts the key away with them', !(await page.isVisible('#change-legend')));
+
+    await page.selectOption('#mode', 'sideBySide');
+    await settle(page);
+    check('coming back restores them', (await classesIn('right')).added > 0);
+
+    await page.evaluate(() => {
+      window.dispatchEvent(new MessageEvent('message', { data: { type: 'exportAs', format: 'svg' } }));
+    });
+    await page.waitForTimeout(600);
+    const marksSvg = await page.evaluate(() =>
+      [...window.__posted].reverse().find((m) => m.type === 'exportData'));
+    const marksDoc = await page.evaluate((m) => {
+      const doc = new DOMParser().parseFromString(m, 'image/svg+xml');
+      return { error: !!doc.querySelector('parsererror'), text: doc.documentElement.textContent };
+    }, marksSvg?.data ?? '');
+    check('the exported comparison parses', !marksDoc.error);
+    check('and carries the key, since the marks travelled out with the panes',
+      marksDoc.text.includes('Added') && marksDoc.text.includes('Removed'), marksDoc.text);
+  }
+
   console.log('\nsemantic mode');
   {
     /**
@@ -555,7 +688,7 @@ async function main() {
         (p.getAttribute('style') ?? '').includes('stroke-dasharray')));
     check('a removed edge is dashed too, so colour is not the only signal', dashedLink);
 
-    check('the legend is showing', await page.isVisible('#semantic-legend'));
+    check('the legend is showing', await page.isVisible('#change-legend'));
     check('and the notice is not, since the diff applied',
       !(await page.isVisible('#semantic-notice')));
     check('sync is pinned, there being one diagram to frame',
@@ -725,7 +858,7 @@ async function main() {
     check('an undiffable pair falls back to both versions side by side',
       (await page.isVisible('#left-viewport')) && (await page.isVisible('#right-viewport')));
     check('and says why', await page.isVisible('#semantic-notice'));
-    check('with the legend put away', !(await page.isVisible('#semantic-legend')));
+    check('with the legend put away', !(await page.isVisible('#change-legend')));
     check('while the picker still shows what was asked for',
       (await page.inputValue('#mode')) === 'semantic');
     await page.screenshot({ path: path.join(shots, '10-semantic-fallback.png') });
@@ -749,7 +882,10 @@ async function main() {
     await settle(page);
     check('leaving semantic puts the two panes back',
       (await page.isVisible('#left-viewport')) && !(await page.isVisible('#merged-viewport')));
-    check('and hides the legend', !(await page.isVisible('#semantic-legend')));
+    // The legend stays, but it is now explaining the marks on the two panes rather than the ones
+    // on a merged diagram — Side by side marks its own.
+    check('and the legend stays, now explaining the two panes',
+      await page.isVisible('#change-legend'));
 
     const backDoc = await describeSvg((await exportNow('svg'))?.data ?? '');
     check('and the export goes back to writing both versions',
