@@ -32,7 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   explicitly, and this is on by default.
 - **A half-typed diagram is left alone**, so the error badge still appears. The readers are lenient
   enough to make sense of a partial edit and emit a tidied version of it, which would otherwise
-  render cleanly and quietly show you something you had not written.
+  render cleanly and quietly show you something you had not written. While one side is mid-edit the
+  other keeps the marks it already has rather than dropping them for the duration — source is
+  invalid most of the time while typing, and re-marking on every keystroke would strobe.
 
 ## [2.0.1] — 2026-08-01
 

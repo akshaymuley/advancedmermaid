@@ -590,10 +590,22 @@ async function main() {
      * diagram and emit a tidied version of it — which mermaid would then render cleanly, quietly
      * replacing the user's broken source with one that works and no badge to say so.
      */
-    await compare(page, VALID, BROKEN);
+    await compare(page, SEMANTIC_BEFORE, SEMANTIC_AFTER);
+    await settle(page);
+    await compare(page, SEMANTIC_BEFORE, `${SEMANTIC_AFTER}\n  L -->`);
     await settle(page);
     check('a half-typed edit is left alone rather than tidied into something that renders',
       await page.isVisible('#right-badge'));
+    // Source is invalid most of the time while typing, so re-marking on every keystroke would
+    // strobe the untouched pane.
+    check('and the pane nobody touched keeps its marks rather than flickering',
+      (await classesIn('left')).removed > 0, JSON.stringify(await classesIn('left')));
+
+    await compare(page, VALID, BROKEN);
+    await settle(page);
+    check('a first render that will not parse still reports itself',
+      await page.isVisible('#right-badge') ||
+      (await page.locator('#right-viewport .render-error').count()) > 0);
 
     /** Author styling would be dropped by the regeneration, so the pair is left unmarked. */
     const STYLED_AFTER = `${SEMANTIC_AFTER}\n  classDef hot fill:#f00\n  class B hot`;

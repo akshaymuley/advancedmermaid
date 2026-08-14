@@ -348,6 +348,9 @@ const marksWanted = (): boolean => viewMode.mode === 'sideBySide';
 /** The marked rewrite of each side, or null while the pair can't take marks or doesn't want them. */
 let annotation: AnnotatedPair | null = null;
 
+/** The raw source each pane was last painted from, so a pane nobody touched can be left alone. */
+const paintedRaw: Record<Pane, string | undefined> = { left: undefined, right: undefined };
+
 /** Whether anything is actually marked on screen right now. */
 const marksShowing = (): boolean =>
   marksWanted() && annotation !== null && annotation.kinds.length > 0;
@@ -359,18 +362,31 @@ const marksShowing = (): boolean =>
  * a diffable pair into an undiffable one and back, exactly as it can for the merged diagram.
  */
 async function paintPanes(): Promise<void> {
-  const left = rendered.left ?? '';
-  const right = rendered.right ?? '';
+  const raw: Record<Pane, string> = {
+    left: rendered.left ?? '',
+    right: rendered.right ?? '',
+  };
 
-  annotation =
-    marksWanted() && (await bothParse(left, right))
-      ? annotateDiagrams(left, right, SEMANTIC_COLOURS)
-      : null;
+  const diffable = marksWanted() && (await bothParse(raw.left, raw.right));
+  annotation = diffable ? annotateDiagrams(raw.left, raw.right, SEMANTIC_COLOURS) : null;
 
-  await Promise.all([
-    renderPane('left', annotation?.left ?? left, left),
-    renderPane('right', annotation?.right ?? right, right),
-  ]);
+  await Promise.all(
+    PANES.map(async (pane) => {
+      /*
+       * One side mid-edit means there is no live diff — but stripping the marks off the *other*
+       * pane to say so would make them flicker on every invalid keystroke, and source is invalid
+       * most of the time while typing. A pane whose own text hasn't moved keeps what it has, which
+       * is the same bargain the failed-render path below already strikes: the badge says the
+       * comparison is stale, the pane goes on showing the last thing that was true.
+       */
+      if (!diffable && marksWanted() && hasGoodRender[pane] && paintedRaw[pane] === raw[pane]) {
+        return;
+      }
+
+      paintedRaw[pane] = raw[pane];
+      await renderPane(pane, annotation?.[pane] ?? raw[pane], raw[pane]);
+    }),
+  );
 }
 
 /**
