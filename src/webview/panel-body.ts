@@ -53,7 +53,7 @@ export const PANEL_BODY_HTML = `<div id="toolbar">
 <div id="pane-headers">
   <header data-side="left"><span id="left-label"></span><span class="badge" id="left-badge" hidden>!</span></header>
   <header data-side="right"><span id="right-label"></span><span class="badge" id="right-badge" hidden>!</span></header>
-  <p id="semantic-legend" hidden>
+  <p id="change-legend" hidden>
     <span class="key added">Added</span>
     <span class="key removed">Removed</span>
     <span class="key changed">Changed</span>

@@ -153,6 +153,50 @@ describe('composeComparison', () => {
 
     expect(root(markup).getAttribute('xmlns')).toBe('http://www.w3.org/2000/svg');
   });
+
+  /**
+   * Side by side marks its two panes, and those marks leave the panel inside the exported SVG. A
+   * coloured outline with nothing to explain it is just a coloured outline once it is pasted into
+   * a pull request, so the comparison carries the same key the merged image does.
+   */
+  describe('the key, when the panes are marked', () => {
+    const keys = [
+      { label: 'Added', colour: '#1a7f37' },
+      { label: 'Removed', colour: '#cf222e', dashed: true },
+    ];
+
+    it('draws the key it is given', () => {
+      const image = composeComparison({ left: side(), right: side(), legend: keys });
+
+      expect(parse(image).documentElement.textContent).toContain('Added');
+      expect(parse(image).documentElement.textContent).toContain('Removed');
+    });
+
+    it('leaves room for it above the diagrams', () => {
+      const withKey = composeComparison({
+        left: side({ height: 200 }),
+        right: side({ height: 200 }),
+        legend: keys,
+        padding: 10,
+        labelHeight: 24,
+        legendHeight: 20,
+      });
+
+      expect(withKey.height).toBe(264); // 10 + 24 + 20 + 200 + 10
+    });
+
+    it('takes no room at all when the panes carry no marks', () => {
+      const plain = composeComparison({
+        left: side({ height: 200 }),
+        right: side({ height: 200 }),
+        padding: 10,
+        labelHeight: 24,
+        legendHeight: 20,
+      });
+
+      expect(plain.height).toBe(244); // 10 + 24 + 200 + 10, no legend row
+    });
+  });
 });
 
 describe('composeMerged', () => {

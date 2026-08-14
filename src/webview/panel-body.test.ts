@@ -29,7 +29,7 @@ const REQUIRED_IDS = [
   'left-viewport',
   'right-viewport',
   'merged-viewport',
-  'semantic-legend',
+  'change-legend',
   'semantic-notice',
 ];
 
@@ -60,7 +60,7 @@ describe('PANEL_BODY_HTML', () => {
   });
 
   it('starts with the semantic legend and notice out of the way', () => {
-    expect(document.getElementById('semantic-legend')!.hasAttribute('hidden')).toBe(true);
+    expect(document.getElementById('change-legend')!.hasAttribute('hidden')).toBe(true);
     expect(document.getElementById('semantic-notice')!.hasAttribute('hidden')).toBe(true);
   });
 

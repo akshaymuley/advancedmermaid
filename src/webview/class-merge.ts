@@ -7,7 +7,7 @@ import type {
 } from './class-diff';
 import type { ClassDiagram } from './class-parse';
 import type { MergeColours } from './flowchart-merge';
-import type { ChangeKind } from './reconcile';
+import { visible, type ChangeKind, type Side } from './reconcile';
 
 /**
  * One mermaid source showing both versions of a class diagram at once, changes marked.
@@ -24,41 +24,56 @@ import type { ChangeKind } from './reconcile';
  * 4. **The class box is the finest unit that can be coloured.** Member changes are therefore said
  *    in the member's own text, in square brackets — and a marker on a *method* lands in what
  *    mermaid reads as the return-type slot, so the old text must not carry its own parentheses.
+ *
+ * With `side` given, this writes that version by itself for one Side by side pane: what it could
+ * not show is dropped, and what survives is written as that version had it. Nothing then reports
+ * what a member used to be, since the pane beside it is showing exactly that.
  */
 export function mergeClassSource(
   diff: ClassDiff,
-  after: ClassDiagram,
+  diagram: ClassDiagram,
   colours: MergeColours,
+  side?: Side,
 ): string {
   const lines: string[] = ['classDiagram'];
 
-  if (after.direction) {
-    lines.push(`  direction ${after.direction}`);
+  if (diagram.direction) {
+    lines.push(`  direction ${diagram.direction}`);
   }
 
-  for (const change of diff.classes) {
-    lines.push(...classLines(change));
+  const classes = diff.classes.filter((change) => visible(change.kind, side));
+
+  for (const change of classes) {
+    lines.push(...classLines(change, side));
   }
 
   for (const change of diff.relationships) {
-    lines.push(`  ${relationship(change)}`);
+    if (visible(change.kind, side)) {
+      lines.push(`  ${relationship(change, side)}`);
+    }
   }
 
   for (const change of diff.notes) {
-    lines.push(`  ${note(change)}`);
+    if (visible(change.kind, side)) {
+      lines.push(`  ${note(change, side)}`);
+    }
   }
 
   // Written last, and this is the only styling in the output: whatever the source carried has been
   // dropped, because a `style` line from the newer version would fight the one written here for the
   // same class and the diff has to win.
-  for (const change of diff.classes) {
+  for (const change of classes) {
     if (change.kind !== 'unchanged') {
-      lines.push(`  style ${change.box.name} ${style(change.kind, colours)}`);
+      lines.push(`  style ${boxFor(change, side).name} ${style(change.kind, colours)}`);
     }
   }
 
   return lines.join('\n');
 }
+
+/** The box as `side` had it — the older declaration when one side is being written alone. */
+const boxFor = (change: ClassChange, side?: Side) =>
+  (side === 'before' && change.before) || change.box;
 
 /**
  * A tinted fill under a solid stroke. The fill is the stroke colour at low alpha via an 8-digit
@@ -70,8 +85,8 @@ function style(kind: ChangeKind, colours: MergeColours): string {
   return `fill:${colour}33,stroke:${colour},stroke-width:3px`;
 }
 
-function classLines(change: ClassChange): string[] {
-  const { box } = change;
+function classLines(change: ClassChange, side?: Side): string[] {
+  const box = boxFor(change, side);
   const name = `${box.name}${box.generic ? `~${box.generic}~` : ''}`;
   const body: string[] = [];
 
@@ -79,7 +94,9 @@ function classLines(change: ClassChange): string[] {
     body.push(`    <<${box.annotation}>>`);
   }
   for (const member of change.members) {
-    body.push(`    ${memberText(member)}`);
+    if (visible(member.kind, side)) {
+      body.push(`    ${memberText(member, side)}`);
+    }
   }
 
   return body.length === 0
@@ -94,14 +111,19 @@ function classLines(change: ClassChange): string[] {
  * anything after a method's argument list as its return type, and a second pair of parentheses in
  * there comes out as a stray `: `.
  */
-function memberText({ kind, member, before }: MemberChange): string {
+function memberText({ kind, member, before }: MemberChange, side?: Side): string {
+  const item = (side === 'before' && before) || member;
+
   if (kind === 'unchanged') {
-    return member.text;
+    return item.text;
   }
-  if (kind === 'changed' && before) {
-    return `${member.text} [was ${withoutParens(before.text)}]`;
+  // On one side there is nothing to say it was: the pane beside it holds the other version.
+  if (kind === 'changed') {
+    return side === undefined && before
+      ? `${member.text} [was ${withoutParens(before.text)}]`
+      : item.text;
   }
-  return `${member.text} [${kind}]`;
+  return `${item.text} [${kind}]`;
 }
 
 const withoutParens = (text: string): string => text.replace(/\([^)]*\)/g, '').trim();
@@ -110,30 +132,35 @@ const withoutParens = (text: string): string => text.replace(/\([^)]*\)/g, '').t
  * A relationship, with its change said in its label — the only place available, since a class
  * diagram cannot style a relationship at all.
  */
-function relationship({ kind, relationship: link, before }: RelationshipChange): string {
-  const from = link.fromCardinality === undefined ? '' : `"${link.fromCardinality}" `;
-  const to = link.toCardinality === undefined ? '' : `"${link.toCardinality}" `;
-  const head = `${link.from} ${from}${link.arrow} ${to}${link.to}`;
+function relationship({ kind, relationship: link, before }: RelationshipChange, side?: Side): string {
+  const item = (side === 'before' && before) || link;
+  const from = item.fromCardinality === undefined ? '' : `"${item.fromCardinality}" `;
+  const to = item.toCardinality === undefined ? '' : `"${item.toCardinality}" `;
+  const head = `${item.from} ${from}${item.arrow} ${to}${item.to}`;
 
   const marker =
     kind === 'unchanged'
       ? undefined
-      : kind === 'changed' && before?.label !== undefined && before.label !== link.label
+      : side === undefined &&
+          kind === 'changed' &&
+          before?.label !== undefined &&
+          before.label !== link.label
         ? `(was ${before.label})`
         : `(${kind})`;
 
-  const label = [link.label, marker].filter(Boolean).join(' ');
+  const label = [item.label, marker].filter(Boolean).join(' ');
 
   return label === '' ? head : `${head} : ${label}`;
 }
 
 /** A note's text is a quoted string, so its marker can sit inside the quotes safely. */
-function note({ kind, note: item, before }: NoteChange): string {
+function note({ kind, note: item, before }: NoteChange, side?: Side): string {
+  const shown = (side === 'before' && before) || item;
   const text =
-    kind === 'changed' && before && before.text !== item.text
+    side === undefined && kind === 'changed' && before && before.text !== item.text
       ? `${item.text} (was ${before.text})`
-      : item.text;
+      : shown.text;
   const marked = kind === 'added' || kind === 'removed' ? `${text} (${kind})` : text;
 
-  return item.of === undefined ? `note "${marked}"` : `note for ${item.of} "${marked}"`;
+  return shown.of === undefined ? `note "${marked}"` : `note for ${shown.of} "${marked}"`;
 }

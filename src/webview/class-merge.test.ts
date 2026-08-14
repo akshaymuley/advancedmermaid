@@ -204,4 +204,92 @@ describe('mergeClassSource', () => {
       expect(parseClassDiagram(source)).not.toBeNull();
     });
   });
+
+  /** One version on its own, marked — what Side by side renders into each pane. */
+  describe('one side at a time', () => {
+    const side = (before: string, after: string, which: 'before' | 'after'): string => {
+      const older = chart(before);
+      const newer = chart(after);
+      const diff = diffClassDiagrams(older, newer);
+      return mergeClassSource(diff, which === 'before' ? older : newer, COLOURS, which);
+    };
+
+    const BEFORE = '  class Animal {\n    +int age\n  }\n  class Fish\n  Animal <|-- Fish';
+    const AFTER = '  class Animal {\n    +String age\n  }\n  class Duck\n  Animal <|-- Duck';
+
+    it('leaves an added class out of the older side', () => {
+      const older = side(BEFORE, AFTER, 'before');
+      expect(older).not.toContain('Duck');
+      expect(older).toContain('class Fish');
+    });
+
+    it('leaves a removed class out of the newer side', () => {
+      const newer = side(BEFORE, AFTER, 'after');
+      expect(newer).not.toContain('Fish');
+      expect(newer).toContain('class Duck');
+    });
+
+    it('styles only what the older side can show — removed and changed, never added', () => {
+      const older = side(BEFORE, AFTER, 'before');
+      expect(older).toContain(`style Fish fill:${COLOURS.removed}33`);
+      expect(older).toContain(`style Animal fill:${COLOURS.changed}33`);
+      expect(older).not.toContain(COLOURS.added);
+    });
+
+    it('styles only what the newer side can show — added and changed, never removed', () => {
+      const newer = side(BEFORE, AFTER, 'after');
+      expect(newer).toContain(`style Duck fill:${COLOURS.added}33`);
+      expect(newer).toContain(`style Animal fill:${COLOURS.changed}33`);
+      expect(newer).not.toContain(COLOURS.removed);
+    });
+
+    it('says each version’s own member text, never what it used to be', () => {
+      expect(lines(side(BEFORE, AFTER, 'before'))).toContain('+int age');
+      expect(lines(side(BEFORE, AFTER, 'after'))).toContain('+String age');
+      expect(side(BEFORE, AFTER, 'before')).not.toContain('[was ');
+      expect(side(BEFORE, AFTER, 'after')).not.toContain('[was ');
+    });
+
+    it('keeps a member each version had and drops the one it didn’t', () => {
+      const before = '  class A {\n    +int gone\n  }';
+      const after = '  class A {\n    +int fresh\n  }';
+
+      expect(lines(side(before, after, 'before'))).toContain('+int gone [removed]');
+      expect(lines(side(before, after, 'before'))).not.toContain('+int fresh [added]');
+      expect(lines(side(before, after, 'after'))).toContain('+int fresh [added]');
+      expect(lines(side(before, after, 'after'))).not.toContain('+int gone [removed]');
+    });
+
+    /**
+     * A relationship is the one thing a class diagram cannot style at all, so its marker stays in
+     * the label — but only ever the word, never what the label used to be.
+     */
+    it('marks a relationship in words, from that side’s point of view', () => {
+      const before = '  Animal --> Keeper : fed by';
+      const after = '  Animal *-- Keeper : fed by';
+
+      expect(side(before, after, 'before')).toContain('Animal --> Keeper : fed by (changed)');
+      expect(side(before, after, 'after')).toContain('Animal *-- Keeper : fed by (changed)');
+      expect(side(before, after, 'before')).not.toContain('(was ');
+    });
+
+    it('keeps each side’s own direction, not the other’s', () => {
+      const older = side('  direction TB\n  class A', '  direction LR\n  class A', 'before');
+      expect(lines(older)).toContain('direction TB');
+      expect(lines(older)).not.toContain('direction LR');
+    });
+
+    it('emits nothing to style when the two versions agree', () => {
+      const same = '  class A {\n    +int x\n  }\n  class B\n  A <|-- B';
+      for (const which of ['before', 'after'] as const) {
+        expect(side(same, same, which)).not.toContain('style ');
+      }
+    });
+
+    it('emits a diagram that still parses on each side', () => {
+      for (const which of ['before', 'after'] as const) {
+        expect(parseClassDiagram(side(BEFORE, AFTER, which))).not.toBeNull();
+      }
+    });
+  });
 });

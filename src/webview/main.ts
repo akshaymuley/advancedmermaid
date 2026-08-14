@@ -5,7 +5,7 @@ import { Box, computeFitView, dividerPercent, panBy, View, zoomAt } from './view
 import { initialViewMode, isStacked, setMode, syncAvailable, toggleSync, ViewMode } from './view-mode';
 import type { MergeColours } from './flowchart-merge';
 import type { ChangeKind } from './reconcile';
-import { mergeDiagrams } from './semantic-diff';
+import { annotateDiagrams, mergeDiagrams, type AnnotatedPair } from './semantic-diff';
 
 type Pane = 'left' | 'right';
 const PANES: Pane[] = ['left', 'right'];
@@ -181,8 +181,21 @@ function zoomBy(factor: number): void {
 /** Whether each pane currently holds a successful render, so a failed one can be kept. */
 const hasGoodRender: Record<Pane, boolean> = { left: false, right: false };
 
-/** Source last handed to each pane. A refresh re-posts both sides; only re-render what moved. */
+/**
+ * The source each pane was *given* — what the author wrote. Both diffs read from here, so it stays
+ * the raw text even when what is on screen is a marked rewrite of it.
+ */
 const rendered: Record<Pane, string | undefined> = { left: undefined, right: undefined };
+
+/**
+ * The source each pane was last *drawn* from, which is the raw text or its annotated rewrite.
+ *
+ * Separate from `rendered` because the cache has to compare against what mermaid actually laid
+ * out. Keying the cache on the raw source instead would miss a real re-render: a pane's marks
+ * depend on the *other* pane's content, so an untouched left side still changes when the right one
+ * gains a node.
+ */
+const drawn: Record<Pane, string | undefined> = { left: undefined, right: undefined };
 
 /** Set once the user pans or zooms; from then on, their framing is never overridden. */
 let userAdjusted = false;
@@ -213,18 +226,23 @@ function measure(svg: SVGSVGElement): Box | undefined {
   return rect.width > 0 && rect.height > 0 ? { width: rect.width, height: rect.height } : undefined;
 }
 
-async function renderPane(side: Pane, data: Side): Promise<void> {
-  el(`${side}-label`).textContent = data.label;
-
-  if (rendered[side] === data.content) {
+/**
+ * Draw one pane from `source`, which is either what the author wrote or its annotated rewrite.
+ *
+ * `fallback` is the raw text, given whenever `source` is a rewrite: source this file generated and
+ * mermaid then refused is a bug in the annotator, and the pane must show the author's diagram
+ * rather than report their work as broken.
+ */
+async function renderPane(side: Pane, source: string, fallback?: string): Promise<void> {
+  if (drawn[side] === source) {
     return;
   }
-  rendered[side] = data.content;
+  drawn[side] = source;
 
   const viewport = el(`${side}-viewport`);
 
   // Mermaid treats empty source as a parse error; an absent diagram isn't an error here.
-  if (isBlankDiagram(data.content)) {
+  if (isBlankDiagram(source)) {
     viewport.innerHTML = '<div class="empty-diagram">(empty)</div>';
     hasGoodRender[side] = false;
     contentBoxes[side] = undefined;
@@ -234,7 +252,7 @@ async function renderPane(side: Pane, data: Side): Promise<void> {
 
   const id = `mmd-${side}-${Date.now()}`;
   try {
-    const { svg } = await mermaid.render(id, data.content);
+    const { svg } = await mermaid.render(id, source);
     viewport.innerHTML = svg;
     const svgEl = viewport.querySelector('svg');
     if (svgEl) {
@@ -247,6 +265,13 @@ async function renderPane(side: Pane, data: Side): Promise<void> {
     // mermaid.render leaves a temp error element in the DOM on failure
     document.getElementById(id)?.remove();
     const message = err instanceof Error ? err.message : String(err);
+
+    // Our own rewrite is what failed, so show what the author actually wrote instead. Their source
+    // is not at fault here and must not be blamed for it.
+    if (fallback !== undefined && fallback !== source) {
+      await renderPane(side, fallback);
+      return;
+    }
 
     // Mid-edit source is invalid most of the time. Keep the last good diagram on screen and
     // flag the error in the header rather than blanking the pane on every keystroke.
@@ -265,7 +290,7 @@ async function renderPane(side: Pane, data: Side): Promise<void> {
   }
 }
 
-// --- Semantic diff ---
+// --- Marking the changes ---
 
 /**
  * `classDef` takes literal colours, not CSS variables, so the theme has to be resolved here. Dark
@@ -301,6 +326,72 @@ const LEGEND_KINDS: { kind: Exclude<ChangeKind, 'unchanged'>; label: string; das
 ];
 let mergedLegend: LegendKey[] = [];
 
+/** The kinds present, as the exported image's key wants them. */
+const legendFor = (kinds: Exclude<ChangeKind, 'unchanged'>[]): LegendKey[] =>
+  LEGEND_KINDS.filter(({ kind }) => kinds.includes(kind)).map(({ kind, label, dashed }) => ({
+    label,
+    colour: SEMANTIC_COLOURS[kind],
+    ...(dashed ? { dashed } : {}),
+  }));
+
+// --- Marks on the two panes ---
+
+/**
+ * Marks belong to Side by side alone.
+ *
+ * Overlay, swipe and blink lay the two renders over each other, and their whole point is that the
+ * shapes line up — a red-outlined diagram stacked on a green-outlined one is two sets of marks
+ * fighting the alignment the mode exists for. Semantic has its merged diagram instead.
+ */
+const marksWanted = (): boolean => viewMode.mode === 'sideBySide';
+
+/** The marked rewrite of each side, or null while the pair can't take marks or doesn't want them. */
+let annotation: AnnotatedPair | null = null;
+
+/** Whether anything is actually marked on screen right now. */
+const marksShowing = (): boolean =>
+  marksWanted() && annotation !== null && annotation.kinds.length > 0;
+
+/**
+ * Draw both panes, marked where the mode and the pair allow it.
+ *
+ * The annotation is re-decided on every call rather than cached against the mode: an edit can turn
+ * a diffable pair into an undiffable one and back, exactly as it can for the merged diagram.
+ */
+async function paintPanes(): Promise<void> {
+  const left = rendered.left ?? '';
+  const right = rendered.right ?? '';
+
+  annotation =
+    marksWanted() && (await bothParse(left, right))
+      ? annotateDiagrams(left, right, SEMANTIC_COLOURS)
+      : null;
+
+  await Promise.all([
+    renderPane('left', annotation?.left ?? left, left),
+    renderPane('right', annotation?.right ?? right, right),
+  ]);
+}
+
+/**
+ * Whether mermaid itself accepts both sources.
+ *
+ * Not redundant with the readers in `semantic-diff.ts`, and the reason is the whole point of this
+ * gate: those readers are deliberately lenient, so they will happily read a half-typed diagram and
+ * emit a *tidied* version of it. Mermaid then renders that cleanly — and a user mid-edit sees a
+ * diagram that parses, with no error badge, instead of the one they are actually writing. Marks
+ * are worth having only on a diagram that stands on its own.
+ *
+ * A grammar parse, not a layout, so this costs far less than the render it guards.
+ */
+async function bothParse(left: string, right: string): Promise<boolean> {
+  const accepted = async (source: string): Promise<boolean> =>
+    !isBlankDiagram(source) && (await mermaid.parse(source, { suppressErrors: true })) !== false;
+
+  const [a, b] = await Promise.all([accepted(left), accepted(right)]);
+  return a && b;
+}
+
 /**
  * Render the two sides as one merged diagram. Returns false when they can't be diffed — a class
  * diagram, a pair whose type changed between versions, or a source too broken to parse — which is
@@ -315,13 +406,7 @@ async function renderMerged(): Promise<boolean> {
     return false;
   }
 
-  mergedLegend = LEGEND_KINDS.filter(({ kind }) => merged.kinds.includes(kind)).map(
-    ({ kind, label, dashed }) => ({
-      label,
-      colour: SEMANTIC_COLOURS[kind],
-      ...(dashed ? { dashed } : {}),
-    }),
-  );
+  mergedLegend = legendFor(merged.kinds);
 
   const { source } = merged;
   if (mergedRendered === source && hasGoodMerged) {
@@ -367,14 +452,21 @@ window.addEventListener('message', async (event: MessageEvent<HostMessage>) => {
   }
 
   el('doc-title').textContent = message.title;
-  await Promise.all([renderPane('left', message.left), renderPane('right', message.right)]);
+  el('left-label').textContent = message.left.label;
+  el('right-label').textContent = message.right.label;
+
+  // Both raw sources land before anything is drawn: each pane's marks are decided against the
+  // other pane's content, so neither can be rendered until both are in.
+  rendered.left = message.left.content;
+  rendered.right = message.right.content;
+  await paintPanes();
 
   // An edit can turn a diffable pair into an undiffable one and back, so the fallback has to be
   // re-decided on every message, not only when the mode is entered.
   if (viewMode.mode === 'semantic') {
     semanticActive = await renderMerged();
-    applyMode();
   }
+  applyMode();
 
   // Open framed rather than at a hardcoded corner. Once the user has moved the view themselves,
   // a refresh must never yank it back.
@@ -456,7 +548,11 @@ function applyMode(): void {
   (el('mode') as HTMLSelectElement).value = mode;
   el('opacity-control').hidden = mode !== 'overlay';
   el('blink-controls').hidden = mode !== 'blink';
-  el('semantic-legend').hidden = layout !== 'semantic';
+
+  // The key explains marks. Semantic always has them; Side by side has them only when the pair
+  // could take them and something actually changed, and a key over two identical diagrams would
+  // be offering to explain colours that aren't there.
+  el('change-legend').hidden = layout !== 'semantic' && !marksShowing();
   el('sync').setAttribute('aria-pressed', String(isSynced()));
   (el('sync') as HTMLButtonElement).disabled = !syncAvailable(viewMode);
 
@@ -485,10 +581,19 @@ const switchTo = async (mode: ViewMode): Promise<void> => {
     setBlinkPaused(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   }
 
-  // Built before the mode is applied, because whether it renders at all decides the layout.
+  const wasMarked = marksWanted();
+  viewMode = setMode(viewMode, mode);
+
+  // Marks live in the source rather than in a stylesheet, so entering or leaving Side by side is
+  // the one mode change that costs a re-render instead of a class flip. `drawn` keeps the second
+  // crossing from repeating the work when nothing else has moved.
+  if (marksWanted() !== wasMarked) {
+    await paintPanes();
+  }
+
+  // Built before the layout is applied, because whether it renders at all decides that layout.
   semanticActive = mode === 'semantic' ? await renderMerged() : false;
 
-  viewMode = setMode(viewMode, mode);
   applyMode();
 
   // Stacking two diagrams that were framed apart leaves them at unrelated scales; re-fit unless
@@ -557,6 +662,9 @@ const comparisonImage = () =>
     right: exportSide('right', paneLabel('right')),
     background: exportBackground(),
     foreground: exportForeground(),
+    // The marks travel out inside the pane SVGs, so the key has to go with them — and only when
+    // there are marks, since an unmarked comparison explaining three colours would invent changes.
+    legend: marksShowing() && annotation ? legendFor(annotation.kinds) : [],
   });
 
 /** The merged diff, titled with both sides so the image still says what it compares. */
