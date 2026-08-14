@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] — 2026-08-14
+
 ### Added
 
 - **Side by side now marks the changes.** A comparison opens in Side by side, and until now that
@@ -242,7 +244,8 @@ Release readiness. Not published to the Marketplace.
 - Rejects files that aren't `.mmd` / `.mermaid`, including via the command palette.
 - Mermaid is bundled — the extension works offline.
 
-[Unreleased]: https://github.com/akshaymuley/AdvancedMermaid/compare/v2.0.1...HEAD
+[Unreleased]: https://github.com/akshaymuley/AdvancedMermaid/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/akshaymuley/AdvancedMermaid/compare/v2.0.1...v2.1.0
 [2.0.1]: https://github.com/akshaymuley/AdvancedMermaid/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/akshaymuley/AdvancedMermaid/compare/v1.0.1...v2.0.0
 [1.0.1]: https://github.com/akshaymuley/AdvancedMermaid/compare/v1.0.0...v1.0.1
