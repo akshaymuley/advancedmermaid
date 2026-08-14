@@ -155,6 +155,7 @@ Both panes pan and zoom together by default. Turn **Sync** off to frame each sid
 - [x] Compare a diagram in one file against a diagram in another
 - [x] Export comparison as image
 - [x] Semantic diff for `sequenceDiagram` and `classDiagram`
+- [x] Mark the changes on the default Side by side view, so the diff is there without picking a mode
 - [ ] Semantic diff for further diagram types — state, ER and the rest, based on what people ask for
 
 See [PLAN.md](PLAN.md) for the full milestone-by-milestone plan.

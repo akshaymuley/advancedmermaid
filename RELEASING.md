@@ -79,7 +79,10 @@ done, and because two of them fail silently.
 2. Bump `version` in `package.json`.
 3. Move the `[Unreleased]` items in `CHANGELOG.md` under the new version, add the date, and
    update the link definitions at the bottom.
-4. Commit and merge to `main`.
+4. **Put steps 2–3 on a branch and merge it by PR — `main` is protected and rejects a direct
+   push.** `release-2.0.0` (#34) and `release-2.1.0` (#38) both did this; the wording here used to
+   say "commit and merge to `main`", which reads like you can commit on it, and the rejected push
+   is the first you hear otherwise. Only the tag in step 5 goes straight to the remote.
 5. Tag and push:
 
    ```bash
@@ -96,7 +99,13 @@ done, and because two of them fail silently.
 7. **Confirm both registries actually serve the new version — and poll, don't check once.**
    Both lag behind a successful publish, and both look like a failed release while they do. At
    v2.0.0, Open VSX returned 404 for about a minute after printing `🚀 Published`, and the
-   Marketplace kept serving the previous version for roughly five minutes.
+   Marketplace kept serving the previous version for roughly five minutes. v2.1.0 repeated it
+   almost exactly — Open VSX within a minute, the Marketplace about four — so treat this as the
+   normal shape of a release rather than a one-off.
+
+   Read the JSON with `node`, not `python`: there is no `python` on the Windows dev machine, and a
+   `curl | python` pipeline there fails *silently*, reporting every poll as pending long after both
+   registries had gone live.
 
    ```bash
    # Open VSX

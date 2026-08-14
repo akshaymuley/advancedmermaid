@@ -4,28 +4,35 @@ Iterative delivery plan for the extension. Each milestone is independently shipp
 it ends with a working `.vsix` and a version bump. Order is deliberate — earlier
 milestones remove friction that later ones would otherwise pay repeatedly.
 
-**Status:** **v2.0.0 published** as **Advanced Mermaid** (`AkshayDMuley.advanced-mermaid`), and the
-first version to reach **both registries** — the VS Code Marketplace and Open VSX, which serves
-VSCodium, Cursor, Gitpod and Windsurf. Renders two
-diagrams side-by-side, opens framed, follows edits to whichever files it is showing, and reports git
+**Status:** **v2.1.0 published** as **Advanced Mermaid** (`AkshayDMuley.advanced-mermaid`), on both
+registries — the VS Code Marketplace and Open VSX, which serves VSCodium, Cursor, Gitpod and
+Windsurf. Renders two
+diagrams side-by-side **with the changes marked on each pane**, opens framed, follows edits to
+whichever files it is showing, and reports git
 failures by kind. Panes pan/zoom together or independently, and each comparison gets its own tab.
 Each pane names its own file, diagram, and version, so a comparison can span two refs or two files.
 The two versions can also be stacked — faded, split at a divider, or blinked between — and exported
-as SVG or PNG, either side by side or as the merged diff. **Milestones 1–7 complete.**
+as SVG or PNG, either side by side or as the merged diff. **Milestones 1–8 complete.**
 
 v2.0.0 shipped three milestones' worth (5, 6 and 7) in one release, since nothing was tagged in
-between. The major bump is for semantic diff: nothing in it removes or renames anything, so every
-1.x command still behaves as it did.
-
-*Two lags worth knowing before checking a future release.* Neither registry is immediate, and both
-look like failure while they aren't: Open VSX answered **404 for about a minute** after reporting a
-successful publish, and the Marketplace kept serving **1.0.1 for roughly five minutes** — long
-enough that a single check after the workflow goes green reports the wrong answer. Poll until the
-version appears rather than checking once. Milestone 7
+between. The major bump was for semantic diff: nothing in it removes or renames anything, so every
+1.x command still behaves as it did. Milestone 7
 is **complete**: flowcharts, sequence diagrams and class diagrams are each parsed, diffed, and
 rendered as **one merged diagram** with the changes marked, falling back to side by side for
 anything else. Each type marks its changes the way mermaid actually allows — which took a probe
 to establish, every time.
+
+v2.1.0 turned that reading on the default view. A user reported seeing "just the diagram render,
+no difference highlighted" — which was accurate, and was the product working as built: every panel
+opens in Side by side, and the marked view sat behind a dropdown labelled "Semantic". Milestone 8
+marks each pane where it stands.
+
+*Two lags worth knowing before checking a future release.* Neither registry is immediate, and both
+look like failure while they aren't: at v2.0.0 Open VSX answered **404 for about a minute** after
+reporting a successful publish, and the Marketplace kept serving the previous version for roughly
+**five minutes**. v2.1.0 behaved the same way — Open VSX was serving within a minute, the
+Marketplace took about **four**. A single check after the workflow goes green reports the wrong
+answer; poll until the version appears.
 
 ---
 
@@ -498,6 +505,64 @@ rendering, a test harness, and real usage feedback to know which diagram types m
       `namespace` is refused, as `box` is in sequence and for the same reason: it contains classes,
       so re-emitting one without modelling it would regroup the diagram.
       *Milestone 7 is complete.*
+
+---
+
+## Milestone 8 — Marked side by side (v2.1.0)
+
+*Not planned. It came from a user report — "comparing shows the diagram render but no difference
+highlighted" — which turned out to describe the product working exactly as built. Worth recording
+as its own milestone because the lesson is about defaults, not about diffing: the feature existed,
+was correct, had 144 browser checks behind it, and almost nobody would ever have seen it.*
+
+- [x] Mark each pane where it stands, rather than moving the marks to a mode.
+      Semantic answers "what changed" by merging both versions into one diagram, which is a
+      different question from "show me both versions" — so the fix was not to change the default
+      mode but to mark the two panes Side by side already draws. The older pane carries removals
+      and rewordings, the newer additions and rewordings.
+      Neither pane captions a label with what it used to say. The merged diagram needs
+      `(was: Build)` because one diagram has to hold both versions; here the pane beside it is
+      already holding it, and on the older side the caption would be the label repeating itself.
+- [x] Generalise the three emitters by side rather than writing a fourth.
+      `mergeSource`, `mergeSequenceSource` and `mergeClassSource` each take an optional
+      `side: 'before' | 'after'` (absent = the merged diagram, unchanged). The rule is the same in
+      all three — skip what this version could not hold, emit what it did, mark only the kinds it
+      can show — and the diffs already carried every `before` needed to do it.
+      `Side` and `visible` live in `reconcile.ts` beside `ChangeKind`: all three emitters speak
+      that vocabulary and none of them owns it.
+      `semantic-diff.ts` grew a second entry point over the dispatch it already owned, not a second
+      ladder beside it. It is the one place that knows which readers exist, so `mergeDiagrams` and
+      `annotateDiagrams` now share one `compare()`.
+- [x] Refuse, three ways, because this one is on by default.
+      An opt-in mode can afford to be bolder than the view everybody lands on. Each refusal falls
+      back to exactly the render the panel has always had.
+      **Author styling** — the emitters never write `classDef`/`style`/`click` back out (the
+      parsers collect them into `unsupported`), so marking a diagram somebody coloured themselves
+      would return it in the diff's colours. Semantic may do that, having been asked; this may not.
+      **A half-typed edit** — and this is the one that had to be found rather than reasoned out.
+      The readers are deliberately lenient, so they read a partial edit happily and emit a
+      *tidied* version of it, which mermaid then renders cleanly: the user mid-edit sees a diagram
+      that parses, with no error badge, instead of the one they are writing. Gated on
+      `mermaid.parse` — mermaid's own grammar, not ours.
+      **The stacked modes** — overlay, swipe and blink lay the renders over each other so shapes
+      line up, and two sets of marks fight the alignment they exist for.
+- [x] Carry the key into the exported image.
+      The marks leave the panel inside the pane SVGs, so `composeComparison` draws the same key
+      `composeMerged` does — a coloured outline nobody can look up is just a coloured outline once
+      it has been pasted into a pull request. The shared layout already took a legend; it was a
+      parameter, not a feature.
+      *Two found only by looking at a real render, as with every mode before this one:* `linkStyle`
+      addresses an edge by **position in the emitted source**, so a side that drops an earlier edge
+      shifts every index after it — the diagram still parses, still renders, and paints the wrong
+      edge. Styling now counts what was emitted rather than what was diffed. And the two pane
+      labels stopped sharing a row: the header row wraps now to fit the key, and `flex: 1 1 50%`
+      plus a 1px divider overflows a wrapping line.
+      *One found only in a published screenshot:* the diff is decided for the **pair**, so an
+      unparseable edit on one side stripped the marks off the *other* pane and put them back on the
+      next valid keystroke. Source is invalid most of the time while typing, so that strobes. A
+      pane whose own text hasn't moved now keeps what it has — the bargain the failed-render path
+      already struck one pane at a time, applied to the unit the marks are actually decided over.
+      *Milestone 8 is complete.*
 
 ---
 
